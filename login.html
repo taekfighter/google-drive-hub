@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home - Google Drive</title>
+<script src="security.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+:root {
+  --bg-dark: #0f172a;
+  --accent-blue: #38bdf8;
+  --accent-rgb: 56, 189, 248;
+  --card-bg: rgba(30, 41, 59, 0.75);
+  --text-main: #f8fafc;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: #060d1a;
+  display: flex; align-items: center; justify-content: center;
+  height: 100vh; overflow: hidden;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-main);
+}
+#spiderweb {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0; pointer-events: none;
+}
+.portal {
+  width: 100%; max-width: 480px;
+  max-height: 92vh;
+  background: rgba(8, 15, 30, 0.88);
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+  border-radius: 8px;
+  box-shadow: 0 0 60px rgba(var(--accent-rgb), 0.08), 0 0 0 1px rgba(var(--accent-rgb), 0.06);
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.portal::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.5), transparent);
+}
+@media (max-width: 519px) {
+  .portal { max-width: 100%; max-height: 100vh; border-radius: 0; }
+}
+.screen {
+  display: none; padding: 36px 32px;
+  flex-direction: column;
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+}
+.screen::-webkit-scrollbar { width: 4px; }
+.screen::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb), 0.2); border-radius: 4px; }
+.screen.active { display: flex; }
+.logo {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px; letter-spacing: 6px;
+  color: rgba(var(--accent-rgb), 0.35);
+  text-transform: uppercase; margin-bottom: 36px;
+}
+.logo span { color: var(--accent-blue); text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.5); }
+h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 22px; font-weight: 700; letter-spacing: 2px;
+  background: linear-gradient(135deg, var(--text-main), var(--accent-blue));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+.sub {
+  font-size: 11px; color: rgba(var(--accent-rgb), 0.38);
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 28px;
+  line-height: 1.8;
+}
+.sub-note {
+  display: inline-block; margin-top: 6px;
+  font-size: 10px; color: rgba(var(--accent-rgb), 0.45);
+  letter-spacing: 1px; text-transform: none;
+  background: rgba(var(--accent-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-rgb), 0.14);
+  border-radius: 5px; padding: 3px 8px;
+}
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; font-size: 9px; letter-spacing: 4px;
+  color: rgba(var(--accent-rgb), 0.45); text-transform: uppercase; margin-bottom: 7px;
+}
+.field input, .field textarea {
+  width: 100%;
+  background: rgba(var(--accent-rgb), 0.04);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  color: var(--text-main);
+  padding: 12px 15px;
+  font-family: 'Outfit', sans-serif; font-size: 14px;
+  border-radius: 6px; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field input:focus, .field textarea:focus {
+  border-color: rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.08);
+}
+.field input::placeholder, .field textarea::placeholder { color: rgba(var(--accent-rgb), 0.2); }
+.field textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+/* Password wrapper — holds input + eye toggle */
+.pass-wrap { position: relative; }
+.pass-wrap input { padding-right: 42px; }
+.eye-btn {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: 42px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: rgba(var(--accent-rgb), 0.3); transition: color 0.2s;
+}
+.eye-btn:hover { color: var(--accent-blue); }
+.eye-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+/* Caps lock warning */
+.caps-warn {
+  display: none; font-size: 10px; letter-spacing: 1px;
+  color: #fb923c; margin-top: 5px;
+  align-items: center; gap: 5px;
+}
+.btn {
+  width: 100%; padding: 13px;
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  color: var(--accent-blue);
+  font-family: 'Orbitron', sans-serif; font-size: 10px;
+  letter-spacing: 3px; text-transform: uppercase; cursor: pointer;
+  border-radius: 6px; margin-top: 8px;
+  transition: all 0.2s;
+}
+.btn:hover {
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.18);
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.ghost {
+  background: transparent;
+  border: 1px solid rgba(var(--accent-rgb), 0.12);
+  color: rgba(var(--accent-rgb), 0.4); margin-top: 10px;
+}
+.btn.ghost:hover { border-color: rgba(var(--accent-rgb), 0.5); color: var(--accent-blue); }
+.err { font-size: 11px; color: #f87171; letter-spacing: 1px; margin-top: 10px; display: none; }
+.divider { height: 1px; background: rgba(var(--accent-rgb), 0.12); margin: 20px 0; }
+.pending-icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.12);
+}
+.pending-dot { width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.2;transform:scale(0.5)} }
+.tag {
+  display: inline-block; font-size: 8px; letter-spacing: 3px;
+  padding: 4px 12px; border-radius: 4px; margin-bottom: 16px;
+  text-transform: uppercase; font-family: 'Orbitron', sans-serif;
+}
+.tag.pending  { background: rgba(var(--accent-rgb), 0.08); color: var(--accent-blue);  border: 1px solid rgba(var(--accent-rgb), 0.2); }
+.tag.approved { background: rgba(34, 197, 94, 0.08);  color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+.tag.denied   { background: rgba(239, 68, 68, 0.08);  color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.welcome-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 18px; color: #4ade80; letter-spacing: 2px;
+  text-shadow: 0 0 16px rgba(74,222,128,0.35);
+  margin-bottom: 12px;
+}
+.hub-link-btn {
+  display: block; width: 100%; padding: 14px;
+  background: rgba(var(--accent-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  color: var(--accent-blue);
+  font-family: 'Orbitron', sans-serif; font-size: 10px;
+  letter-spacing: 3px; text-transform: uppercase; cursor: pointer;
+  border-radius: 6px; text-decoration: none; text-align: center;
+  transition: all 0.2s; margin-top: 8px;
+}
+.hub-link-btn:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.15);
+}
+.hub-link-desc { font-size: 12px; color: rgba(var(--accent-rgb), 0.3); line-height: 1.9; margin-top: 10px; }
+.send-ok { font-size: 11px; color: #4ade80; letter-spacing: 1px; margin-top: 10px; display: none; text-align: center; }
+.settings-section { margin-bottom: 18px; }
+.settings-label {
+  font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(var(--accent-rgb), 0.4); margin-bottom: 10px; display: block;
+  font-family: 'Orbitron', sans-serif;
+}
+.settings-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.settings-row label {
+  font-size: 11px; color: rgba(var(--accent-rgb), 0.55); flex: 1; letter-spacing: 1px;
+}
+.settings-row input[type="number"], .settings-row input[type="password"], .settings-row input[type="text"] {
+  width: 90px; background: rgba(var(--accent-rgb), 0.05);
+  border: 1px solid rgba(var(--accent-rgb), 0.18); color: var(--accent-blue);
+  padding: 7px 10px; font-family: 'Outfit', sans-serif; font-size: 12px;
+  border-radius: 4px; outline: none; text-align: center;
+}
+.settings-row input[type="password"], .settings-row input[type="text"] {
+  width: 100%; text-align: left;
+}
+.settings-row input:focus { border-color: var(--accent-blue); }
+.settings-save {
+  width: 100%; padding: 10px; margin-top: 4px;
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.3); color: var(--accent-blue);
+  font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; cursor: pointer; border-radius: 5px; transition: all 0.2s;
+}
+.settings-save:hover { background: rgba(var(--accent-rgb), 0.16); border-color: var(--accent-blue); }
+.settings-save:disabled { opacity: 0.4; cursor: not-allowed; }
+.settings-ok { font-size: 11px; color: #4ade80; letter-spacing: 1px; margin-top: 8px; display: none; text-align: center; }
+.settings-err { font-size: 11px; color: #f87171; letter-spacing: 1px; margin-top: 8px; display: none; text-align: center; }
+.settings-divider { height: 1px; background: rgba(var(--accent-rgb), 0.08); margin: 16px 0; }
+/* ── LOADING SCREEN ── */
+#loader {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #060d1a;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 28px;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+#loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.loader-logo { font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 8px; text-transform: uppercase; color: rgba(56,189,248,0.35); }
+.loader-logo span { color: #38bdf8; text-shadow: 0 0 14px rgba(56,189,248,0.6); }
+.loader-spinner { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(56,189,248,0.1); border-top-color: rgba(56,189,248,0.8); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-bar-wrap { width: 160px; height: 2px; background: rgba(56,189,248,0.08); border-radius: 2px; overflow: hidden; }
+.loader-bar { height: 100%; width: 0%; background: linear-gradient(90deg, transparent, #38bdf8, transparent); animation: barfill 1.8s ease-out forwards; }
+@keyframes barfill { 0%{width:0%} 60%{width:75%} 100%{width:100%} }
+.loader-text { font-family: 'Outfit', sans-serif; font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: rgba(56,189,248,0.28); animation: textblink 1.4s ease-in-out infinite; }
+@keyframes textblink { 0%,100%{opacity:0.28} 50%{opacity:0.6} }
+/* Page fade-out on hub navigate */
+body.fading-out { animation: fadeOut 0.45s ease forwards; }
+@keyframes fadeOut { to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="loader">
+  <div class="loader-logo"><span>Google Drive</span> · Portal</div>
+  <div class="loader-spinner"></div>
+  <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+  <div class="loader-text">Loading login please wait a sec...</div>
+</div>
+
+<canvas id="spiderweb"></canvas>
+
+<div class="portal">
+
+  <!-- LOGIN -->
+  <div class="screen active" id="s-login">
+    <div class="logo"><span>Google Drive</span> · Login Portal</div>
+    <h1>Login</h1>
+    <p class="sub">Enter your credentials<br>Forgot your info? Contact me.
+    <br><span class="sub-note">⏳ First login may take a moment — hang tight.</span></p>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="login-user" placeholder="First Last" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pass-wrap">
+        <input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')loginUser()" onkeyup="checkCaps(event,'login-caps')">
+        <button type="button" class="eye-btn" onclick="togglePass('login-pass',this)" tabindex="-1" aria-label="Show password">
+          <svg id="eye-login-pass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="caps-warn" id="login-caps">⚠ Caps Lock is on</div>
+    </div>
+    <button class="btn" onclick="loginUser()" id="login-btn">Login →</button>
+    <button class="btn ghost" onclick="show('s-register')">Create Account</button>
+    <p class="err" id="login-err"></p>
+  </div>
+
+  <!-- REGISTER -->
+  <div class="screen" id="s-register">
+    <div class="logo"><span>Google Drive</span> · Register Portal</div>
+    <h1>Create Account</h1>
+    <p class="sub">Request access · Keep this page open until approved<br>*** Username must be First &amp; Last name ***</p>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="reg-user" placeholder="First Last" onkeydown="if(event.key==='Enter')document.getElementById('reg-pass').focus()">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pass-wrap">
+        <input type="password" id="reg-pass" placeholder="Password" onkeydown="if(event.key==='Enter')registerUser()" onkeyup="checkCaps(event,'reg-caps')">
+        <button type="button" class="eye-btn" onclick="togglePass('reg-pass',this)" tabindex="-1" aria-label="Show password">
+          <svg id="eye-reg-pass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="caps-warn" id="reg-caps">⚠ Caps Lock is on</div>
+    </div>
+    <button class="btn" onclick="registerUser()" id="reg-btn">Request Access →</button>
+    <button class="btn ghost" onclick="show('s-login')">← Back to Login</button>
+    <p class="err" id="reg-err"></p>
+  </div>
+
+  <!-- PENDING -->
+  <div class="screen" id="s-pending">
+    <div class="logo"><span>Google Drive</span> · Pending Portal</div>
+    <div class="pending-icon"><div class="pending-dot"></div></div>
+    <div class="tag pending">Awaiting Approval</div>
+    <h1>Request Submitted</h1>
+    <p class="sub" style="margin-bottom:14px;">Waiting for administrator review</p>
+    <p style="font-size:12px;color:rgba(var(--accent-rgb),0.25);line-height:1.9;margin-bottom:28px;">Your request is in the queue. This page will automatically update when approved.</p>
+    <div class="divider"></div>
+    <div style="font-size:11px;color:rgba(var(--accent-rgb),0.3);letter-spacing:1px;">Logged in as: <span id="pending-user" style="color:var(--accent-blue);"></span></div>
+    <div id="pending-conn-err" style="display:none;margin-top:12px;font-size:11px;color:rgba(239,68,68,0.7);letter-spacing:1px;"></div>
+  </div>
+
+  <!-- APPROVED / USER HUB -->
+  <div class="screen" id="s-approved">
+    <div class="logo"><span>Google Drive</span> · Account Portal</div>
+    <div class="tag approved" style="align-self:flex-start;">Access Granted</div>
+    <p style="font-size:10px;color:rgba(var(--accent-rgb),0.4);letter-spacing:3px;text-transform:uppercase;margin-bottom:4px;font-family:'Orbitron',sans-serif;">Welcome,</p>
+    <div class="welcome-name" id="approved-username" style="margin-bottom:14px;"></div>
+    <p class="hub-link-desc">Click the button below to enter the game hub. Use the fields below to request games or report broken ones.
+      <br><span class="sub-note">⏳ Hub may take a moment to open — hang tight.</span>
+    </p>
+    <a class="hub-link-btn" href="clocker.html" id="hub-link"
+       draggable="false"
+       ondragstart="return false;"
+       onmousedown="if(event.button===1)return false;">→ Open Game Hub</a>
+    <div class="divider"></div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,0.6);display:inline-block;"></span>
+        Game Requests
+      </label>
+      <textarea id="game-request-txt" placeholder="Type the name of a game you want added..."></textarea>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#f87171;box-shadow:0 0 6px rgba(248,113,113,0.6);display:inline-block;"></span>
+        Games That Don't Work
+      </label>
+      <textarea id="game-broken-txt" placeholder="Type the name of a game that isn't working..."></textarea>
+    </div>
+    <button class="btn" onclick="submitGameFeedback()" style="margin-top:0;">Send →</button>
+    <p class="send-ok" id="send-ok-msg">✓ Sent! Thanks for the feedback.</p>
+  </div>
+
+
+  <!-- DENIED -->
+  <div class="screen" id="s-denied" style="text-align:center;align-items:center;">
+    <div class="logo"><span>Google Drive</span> · Denied Portal</div>
+    <div class="tag denied">Access Denied</div>
+    <h1 style="margin-bottom:14px;">Not Approved</h1>
+    <p style="font-size:13px;color:rgba(var(--accent-rgb),0.3);margin-bottom:28px;">Contact me to find out the reason why.</p>
+    <button class="btn ghost" style="width:auto;padding:10px 24px;" onclick="show('s-login');resetLogin()">← Try Again</button>
+  </div>
+
+  <!-- KICKED -->
+  <div class="screen" id="s-kicked" style="text-align:center;align-items:center;">
+    <div class="logo"><span>Google Drive</span> · Kicked Portal</div>
+    <div class="tag denied">Access Revoked</div>
+    <h1 style="margin-bottom:14px;">You've Been Kicked</h1>
+    <p style="font-size:13px;color:rgba(var(--accent-rgb),0.3);margin-bottom:28px;">Contact me to find out the reason why.</p>
+    <button class="btn ghost" style="width:auto;padding:10px 24px;" onclick="show('s-login');resetLogin()">← Back to Login</button>
+  </div>
+
+  <!-- LOCKDOWN -->
+  <div class="screen" id="s-lockdown" style="text-align:center;align-items:center;">
+    <div class="logo"><span>Google Drive</span> · locked</div>
+    <div style="width:56px;height:56px;border-radius:50%;border:1px solid rgba(251,146,60,0.5);display:flex;align-items:center;justify-content:center;margin-bottom:20px;box-shadow:0 0 28px rgba(251,146,60,0.15);">
+      <span style="font-size:22px;">🔒</span>
+    </div>
+    <div class="tag" style="background:rgba(251,146,60,0.08);color:#fb923c;border:1px solid rgba(251,146,60,0.3);margin-bottom:16px;">Site Locked</div>
+    <h1 style="margin-bottom:14px;">Locked Down</h1>
+    <p style="font-size:13px;color:rgba(var(--accent-rgb),0.3);line-height:1.9;margin-bottom:8px;">
+      This site is currently locked down until further notice.
+    </p>
+    <p style="font-size:11px;color:rgba(var(--accent-rgb),0.2);letter-spacing:1px;">Contact the administrator for more information.</p>
+  </div>
+
+</div>
+
+
+<!-- Firebase compat SDK — compat mode, all functions are global -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+
+/* =====================================================
+   SECURITY & ANTI-INSPECT
+===================================================== */
+document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+document.addEventListener('keydown', function(e) {
+  if (e.keyCode === 123 ||
+      (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
+      (e.ctrlKey && e.keyCode === 85) ||
+      (e.ctrlKey && e.keyCode === 83)) {
+    e.preventDefault();
+    return false;
+  }
+});
+(function() {
+  setInterval(function() {
+    var start = performance.now();
+    debugger;
+    if (performance.now() - start > 100) {
+      console.clear();
+      console.log("Developer tools are disabled for security.");
+    }
+  }, 1000);
+})();
+
+/* ═══════════════════════════════════════════════════
+   FIREBASE INIT
+═══════════════════════════════════════════════════ */
+firebase.initializeApp({
+  apiKey: "AIzaSyBJ4lMm2Nf9u6UeJLHH-Ap9z7lX9wBFEuc",
+  authDomain: "drive-portal-d7eb1.firebaseapp.com",
+  databaseURL: "https://drive-portal-d7eb1-default-rtdb.firebaseio.com",
+  projectId: "drive-portal-d7eb1",
+  storageBucket: "drive-portal-d7eb1.firebasestorage.app",
+  messagingSenderId: "602318258720",
+  appId: "1:602318258720:web:e81d1c6ec4c06bd5da3245"
+});
+var db = firebase.database();
+
+
+/* ═══════════════════════════════════════════════════
+   CONNECTIVITY CHECK — runs once on load
+   Shows a persistent banner if Firebase is unreachable
+═══════════════════════════════════════════════════ */
+db.ref('.info/connected').on('value', function(snap) {
+  var banner = document.getElementById('firebase-status');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'firebase-status';
+    Object.assign(banner.style, {
+      position:'fixed', top:'0', left:'0', right:'0', zIndex:'99999',
+      padding:'8px 16px', textAlign:'center', fontSize:'12px',
+      fontFamily:"'Outfit',sans-serif", letterSpacing:'1px',
+      transition:'opacity 0.4s', display:'none'
+    });
+    document.body.appendChild(banner);
+  }
+  if (snap.val() === true) {
+    banner.style.display = 'none';
+  } else {
+    banner.textContent = '⚠ Firebase disconnected — check your internet connection';
+    banner.style.background = 'rgba(239,68,68,0.85)';
+    banner.style.color = '#fff';
+    banner.style.display = 'block';
+  }
+});
+
+/* ═══════════════════════════════════════════════════
+   CONFIG  (loaded from Firebase on init)
+═══════════════════════════════════════════════════ */
+var INACTIVITY_WARN_MS = 40 * 60 * 1000;  // default 40 min
+var INACTIVITY_OUT_MS  = 45 * 60 * 1000;  // default 45 min
+
+db.ref('config').get().then(function(snap) {
+    if (!snap.exists()) return;
+    var cfg = snap.val();
+    if (cfg.inactivityWarnMin  > 0) INACTIVITY_WARN_MS = cfg.inactivityWarnMin  * 60 * 1000;
+    if (cfg.inactivityLogoutMin > 0) INACTIVITY_OUT_MS  = cfg.inactivityLogoutMin * 60 * 1000;
+  }).catch(function() {});
+
+/* ═══════════════════════════════════════════════════
+   STATE  (mirrors original exactly)
+═══════════════════════════════════════════════════ */
+var currentUser       = null;
+var pollTimer         = null;   // interval for pending-check and kick-check
+var presenceTimer     = null;
+var loginTime         = null;
+var navigatingToHub   = false;
+var cachedData        = null;
+
+// Inactivity
+var lastActivity      = Date.now();
+var warnToastShown    = false;
+var inactivityTimer   = null;
+
+// Rate limiting
+var loginAttempts = 0;
+var MAX_ATTEMPTS  = 5;
+var COOLDOWN_MS   = 30000;
+var cooldownUntil = 0;
+
+/* ═══════════════════════════════════════════════════
+   INACTIVITY TOAST (created once, reused)
+═══════════════════════════════════════════════════ */
+var inactToast = document.createElement('div');
+inactToast.id = 'inactivity-toast';
+inactToast.innerHTML = '<span>⚠️ You\'ll be logged out in <strong>5 minutes</strong> due to inactivity.</span><button id="inact-stay-btn">Stay</button>';
+Object.assign(inactToast.style, {
+  display: 'none', position: 'fixed', bottom: '24px', left: '50%',
+  transform: 'translateX(-50%)', zIndex: '9999',
+  background: 'rgba(8,15,30,0.97)', border: '1px solid rgba(251,146,60,0.5)',
+  borderRadius: '8px', padding: '14px 20px', color: '#fb923c',
+  fontFamily: "'Outfit', sans-serif", fontSize: '13px',
+  boxShadow: '0 0 24px rgba(251,146,60,0.2)',
+  alignItems: 'center', gap: '16px', whiteSpace: 'nowrap'
+});
+document.body.appendChild(inactToast);
+var inactStayBtn = document.getElementById('inact-stay-btn');
+inactStayBtn.style.cssText = 'background:rgba(251,146,60,0.12);border:1px solid rgba(251,146,60,0.4);color:#fb923c;padding:6px 14px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;';
+inactStayBtn.addEventListener('click', function() {
+  lastActivity = Date.now();
+  inactToast.style.display = 'none';
+  warnToastShown = false;
+});
+
+function startInactivityWatch() {
+  stopInactivityWatch();
+  lastActivity = Date.now();
+  warnToastShown = false;
+  inactivityTimer = setInterval(function() {
+    // Only enforce while on the approved screen
+    if (!document.getElementById('s-approved').classList.contains('active')) return;
+    var idle = Date.now() - lastActivity;
+    if (idle >= INACTIVITY_OUT_MS) {
+      stopInactivityWatch();
+      inactToast.style.display = 'none';
+      // Log and clear presence, then reset to login screen
+      var s = nowStamp();
+      var duration = loginTime ? formatDuration(Date.now() - loginTime) : null;
+      var entry = { username: currentUser, event: 'inactivity-logout', date: s.date, time: s.time };
+      if (duration) entry.duration = duration;
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json',
+        { method: 'POST', body: JSON.stringify(entry), keepalive: true });
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(currentUser) + '.json',
+        { method: 'DELETE', keepalive: true });
+      stopPolling();
+      stopPresence();
+      currentUser = null;
+      loginTime = null;
+      navigatingToHub = false;
+      document.getElementById('login-user').value = '';
+      document.getElementById('login-pass').value = '';
+      show('s-login');
+    } else if (idle >= INACTIVITY_WARN_MS && !warnToastShown) {
+      warnToastShown = true;
+      inactToast.style.display = 'flex';
+    }
+  }, 10000);
+}
+
+function stopInactivityWatch() {
+  if (inactivityTimer) { clearInterval(inactivityTimer); inactivityTimer = null; }
+}
+
+// Reset activity timer on any user interaction
+['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(function(ev) {
+  window.addEventListener(ev, function() {
+    lastActivity = Date.now();
+    if (warnToastShown) { inactToast.style.display = 'none'; warnToastShown = false; }
+  }, { passive: true });
+});
+
+/* ═══════════════════════════════════════════════════
+   FIREBASE HELPERS
+   These mirror the JSONBin apiGet/apiPut/readModifyWrite
+   interface but hit Firebase instead.
+═══════════════════════════════════════════════════ */
+
+// Read the whole DB via REST API (bypasses SDK WebSocket issues on localhost)
+var DB_URL = 'https://drive-portal-d7eb1-default-rtdb.firebaseio.com';
+var DB_KEY  = 'AIzaSyBJ4lMm2Nf9u6UeJLHH-Ap9z7lX9wBFEuc';
+
+// Fetch with automatic 8s timeout — avoids hanging forever under lag
+function fetchWithTimeout(url, options, ms) {
+  ms = ms || 8000;
+  var ctrl = new AbortController();
+  var tid  = setTimeout(function() { ctrl.abort(); }, ms);
+  return fetch(url, Object.assign({}, options || {}, { signal: ctrl.signal }))
+    .then(function(r) { clearTimeout(tid); return r; })
+    .catch(function(e) { clearTimeout(tid); throw e; });
+}
+
+// REST-based delete
+function fbDelete(path) {
+  return fetchWithTimeout(DB_URL + '/' + path + '.json?auth=' + DB_KEY, { method: 'DELETE' });
+}
+
+// SHA-256 password hash using Web Crypto — no library needed
+function hashPassword(pass) {
+  var msgBuffer = new TextEncoder().encode(pass);
+  return crypto.subtle.digest('SHA-256', msgBuffer).then(function(hashBuffer) {
+    var hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(function(b) { return b.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+
+function fbGet() {
+  return fetchWithTimeout(DB_URL + '/.json?auth=' + DB_KEY)
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(val) {
+    cachedData = val || {};
+
+    if (cachedData.users && !Array.isArray(cachedData.users)) {
+      cachedData.users = Object.values(cachedData.users).filter(function(u) {
+        return u && typeof u === 'object' && u.username;
+      });
+    }
+    if (!Array.isArray(cachedData.users)) cachedData.users = [];
+
+    if (cachedData.activityLog && !Array.isArray(cachedData.activityLog)) {
+      cachedData.activityLog = Object.values(cachedData.activityLog).filter(Boolean).reverse();
+    }
+    if (!Array.isArray(cachedData.activityLog)) cachedData.activityLog = [];
+
+    if (cachedData.gameRequests && !Array.isArray(cachedData.gameRequests)) {
+      cachedData.gameRequests = Object.values(cachedData.gameRequests).filter(Boolean).reverse();
+    }
+    if (!Array.isArray(cachedData.gameRequests)) cachedData.gameRequests = [];
+
+    return cachedData;
+  });
+}
+
+// Lightweight fetch — only pulls a single user node (used by polling to avoid full DB download)
+function fbGetUser(username) {
+  var key = safeKey(username);
+  return fetchWithTimeout(DB_URL + '/users/' + key + '.json?auth=' + DB_KEY)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(u) {
+      return u || null;
+    });
+}
+
+// Convert normalised users array back to keyed object for Firebase
+function usersToObj(arr) {
+  var obj = {};
+  (arr || []).forEach(function(u) {
+    if (u && u.username) obj[safeKey(u.username)] = u;
+  });
+  return obj;
+}
+
+// safeKey: Firebase keys can't have . # $ [ ]
+function safeKey(username) {
+  return username.toLowerCase().replace(/[.#$[\]]/g, '_');
+}
+
+/* ═══════════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════════ */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
+
+function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function statusColor(s) {
+  return s === 'approved' ? '#4ade80' : s === 'pending' ? 'var(--accent-blue)' : s === 'kicked' ? '#fb923c' : '#f87171';
+}
+
+function formatDuration(ms) {
+  var totalSec = Math.floor(ms / 1000);
+  var h = Math.floor(totalSec / 3600);
+  var m = Math.floor((totalSec % 3600) / 60);
+  var s = totalSec % 60;
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
+function buildLogEntry(username, event) {
+  var now = new Date();
+  return { username: username, event: event, date: now.toLocaleDateString(), time: now.toLocaleTimeString() };
+}
+
+function nowStamp() {
+  var n = new Date();
+  return { date: n.toLocaleDateString(), time: n.toLocaleTimeString() };
+}
+
+function getUser(data, username) {
+  return (data.users || []).find(function(r) {
+    return r && r.username && r.username.toLowerCase() === username.toLowerCase();
+  }) || null;
+}
+
+/* ═══════════════════════════════════════════════════
+   ACTION LOADER
+═══════════════════════════════════════════════════ */
+function showActionLoader(label) {
+  var loader = document.getElementById('loader');
+  if (!loader) return;
+  var txt = loader.querySelector('.loader-text');
+  var bar = loader.querySelector('.loader-bar');
+  if (txt) txt.textContent = label || 'Loading';
+  if (bar) { var nb = bar.cloneNode(true); bar.parentNode.replaceChild(nb, bar); }
+  loader.classList.remove('hidden');
+}
+function hideActionLoader() {
+  var loader = document.getElementById('loader');
+  if (loader) loader.classList.add('hidden');
+}
+
+/* ═══════════════════════════════════════════════════
+   ACTIVITY LOG
+═══════════════════════════════════════════════════ */
+var MAX_LOG = 200;
+function logActivity(username, event) {
+  if (!username) return Promise.resolve();
+  var entry = buildLogEntry(username, event);
+  return db.ref('activityLog').push(entry).then(function() {
+    // Prune log to MAX_LOG entries so Firebase never grows unboundedly
+    return db.ref('activityLog').once('value');
+  }).then(function(snap) {
+    var keys = [];
+    snap.forEach(function(child) { keys.push(child.key); });
+    if (keys.length > MAX_LOG) {
+      var updates = {};
+      keys.slice(0, keys.length - MAX_LOG).forEach(function(k) {
+        updates['activityLog/' + k] = null;
+      });
+      return db.ref('/').update(updates);
+    }
+  }).catch(function() {});
+}
+
+function logActivityAndPresence(username, event, page) {
+  if (!username) return Promise.resolve();
+  var entry = buildLogEntry(username, event);
+  var updates = {};
+  // push returns a new key — use set with timestamp key instead for atomic update
+  var logKey = db.ref('activityLog').push().key;
+  updates['activityLog/' + logKey] = entry;
+  updates['presence/' + safeKey(username)] = { page: page, heartbeat: Date.now() };
+  return db.ref('/').update(updates);
+}
+
+/* ═══════════════════════════════════════════════════
+   PRESENCE
+═══════════════════════════════════════════════════ */
+function setPresenceOnline(username, page) {
+  if (!username) return;
+  db.ref('presence/' + safeKey(username)).set({ page: page, heartbeat: Date.now() });
+}
+
+function startPresence(username, page) {
+  stopPresence();
+  setPresenceOnline(username, page);
+  presenceTimer = setInterval(function() { setPresenceOnline(username, page); }, 25000);
+}
+
+function stopPresence() {
+  if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+}
+
+/* ═══════════════════════════════════════════════════
+   LOGIN
+═══════════════════════════════════════════════════ */
+function loginUser() {
+  var user = document.getElementById('login-user').value.trim();
+  var pass = document.getElementById('login-pass').value;
+  var err  = document.getElementById('login-err');
+  var btn  = document.getElementById('login-btn');
+
+  if (!user || !pass) { showErr(err, 'Enter username and password.'); return; }
+
+  if (Date.now() < cooldownUntil) {
+    var remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
+    showErr(err, 'Too many attempts. Try again in ' + remaining + 's.');
+    return;
+  }
+
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Loading...';
+  showActionLoader('Signing in, may take a sec...');
+
+  fbGet().then(function(data) {
+    var existing = getUser(data, user);
+    return hashPassword(pass).then(function(hashed) {
+    // Accept both hashed and legacy plaintext passwords so existing users aren't locked out
+    var passwordMatch = existing && (existing.password === hashed || existing.password === pass);
+    if (!existing || !passwordMatch) {
+      loginAttempts++;
+      hideActionLoader();
+      if (loginAttempts >= MAX_ATTEMPTS) {
+        cooldownUntil = Date.now() + COOLDOWN_MS;
+        loginAttempts = 0;
+        showErr(err, 'Too many failed attempts. Try again in ' + (COOLDOWN_MS / 1000) + 's.');
+      } else {
+        var left = MAX_ATTEMPTS - loginAttempts;
+        showErr(err, 'Invalid username or password. ' + left + ' attempt' + (left === 1 ? '' : 's') + ' remaining.');
+      }
+      btn.disabled = false; btn.textContent = 'Login →';
+      return;
+    }
+
+    loginAttempts = 0;
+    currentUser = existing.username;
+
+    if (existing.status === 'approved') {
+      logActivityAndPresence(currentUser, 'login', 'login').then(function() {
+        hideActionLoader();
+        handleApproved();
+      }).catch(function() {
+        // Log write failed (network lag) — still let the user in
+        hideActionLoader();
+        handleApproved();
+      });
+    } else if (existing.status === 'pending') {
+      hideActionLoader();
+      document.getElementById('pending-user').textContent = currentUser;
+      show('s-pending');
+      startPolling(currentUser);
+    } else if (existing.status === 'denied') {
+      hideActionLoader(); show('s-denied');
+    } else if (existing.status === 'kicked') {
+      hideActionLoader(); show('s-kicked');
+    }
+    btn.disabled = false; btn.textContent = 'Login →';
+    }); // end hashPassword.then
+  }).catch(function(e) {
+    hideActionLoader();
+    var msg = (e && e.name === 'AbortError') ? 'Request timed out. Check your connection.' : 'Connection error. Please try again.';
+    showErr(err, msg);
+    btn.disabled = false; btn.textContent = 'Login →';
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   REGISTER
+═══════════════════════════════════════════════════ */
+function registerUser() {
+  var user = document.getElementById('reg-user').value.trim();
+  var pass = document.getElementById('reg-pass').value;
+  var err  = document.getElementById('reg-err');
+  var btn  = document.getElementById('reg-btn');
+
+  if (!user || !pass) { showErr(err, 'Fill all fields.'); return; }
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Sending...';
+  showActionLoader('Creating account, may take a sec to load...');
+
+  // Check if user exists first (check both safeKey and scan all users for case-insensitive match)
+  fbGet().then(function(data) {
+    var existing = getUser(data, user);
+    if (existing) {
+      hideActionLoader();
+      showErr(err, 'User already exists. Login instead.');
+      btn.disabled = false; btn.textContent = 'Request Access →';
+      return Promise.reject('duplicate');
+    }
+    var now = new Date();
+    return hashPassword(pass).then(function(hashed) {
+      var newUser = { username: user, password: hashed, status: 'pending', time: now.toLocaleTimeString() };
+      var logKey = db.ref('activityLog').push().key;
+      var updates = {};
+      updates['users/' + safeKey(user)] = newUser;
+      updates['activityLog/' + logKey] = buildLogEntry(user, 'registered');
+      return db.ref('/').update(updates);
+    });
+  }).then(function() {
+    currentUser = user;
+    hideActionLoader();
+    document.getElementById('pending-user').textContent = user;
+    show('s-pending');
+    startPolling(user);
+    btn.disabled = false; btn.textContent = 'Request Access →';
+  }).catch(function(e) {
+    if (e !== 'duplicate') {
+      hideActionLoader();
+      showErr(err, 'Connection error. Try again.');
+      btn.disabled = false; btn.textContent = 'Request Access →';
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   POLLING — mirrors original exactly (8s interval)
+   Checks pending→approved/denied/kicked AND kick while approved
+═══════════════════════════════════════════════════ */
+function startPolling(username) {
+  stopPolling();
+  var pollFails = 0;
+  var pollErrEl = document.getElementById('pending-conn-err');
+  pollTimer = setInterval(function() {
+    fbGetUser(username).then(function(u) {
+      pollFails = 0;
+      if (pollErrEl) pollErrEl.style.display = 'none';
+      if (!u) return;
+      if (u.status === 'approved') {
+        stopPolling();
+        currentUser = currentUser || username;
+        logActivityAndPresence(currentUser, 'login', 'login').then(function() {
+          handleApproved();
+        }).catch(function() {
+          handleApproved();
+        });
+      } else if (u.status === 'denied') {
+        stopPolling(); show('s-denied');
+      } else if (u.status === 'kicked') {
+        stopPolling(); show('s-kicked');
+      }
+    }).catch(function() {
+      pollFails++;
+      if (pollFails >= 3 && pollErrEl) {
+        pollErrEl.textContent = '⚠ Having trouble connecting — retrying…';
+        pollErrEl.style.display = 'block';
+      }
+    });
+  }, 4000);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+/* ═══════════════════════════════════════════════════
+   APPROVED FLOW — mirrors original exactly
+═══════════════════════════════════════════════════ */
+function handleApproved() {
+  document.getElementById('approved-username').textContent = currentUser || '';
+  loginTime = Date.now();
+  sessionStorage.setItem('clocker_user', currentUser);
+  sessionStorage.setItem('clocker_login_time', loginTime);
+
+  var hubLink = document.getElementById('hub-link');
+  var hubClicked = false;
+  hubLink.onclick = function(e) {
+    e.preventDefault();
+    if (hubClicked) return;
+    hubClicked = true;
+    hubLink.style.cursor = 'not-allowed';
+    hubLink.style.opacity = '0.6';
+    hubLink.style.pointerEvents = 'none';
+    showActionLoader('Opening Game Hub, may take a sec...');
+    navigatingToHub = true;
+    logActivity(currentUser, 'hub-opened').then(function() {
+      document.body.classList.add('fading-out');
+      setTimeout(function() { window.location.href = 'clocker.html'; }, 420);
+    });
+  };
+
+  show('s-approved');
+  startPresence(currentUser, 'login');
+  startInactivityWatch();
+
+  // Poll for kick — mirrors original 8s interval
+  stopPolling();
+  pollTimer = setInterval(function() {
+    fbGetUser(currentUser).then(function(u) {
+      if (u && u.status === 'kicked') {
+        stopPolling();
+        stopPresence();
+        logActivity(currentUser, 'kicked').then(function() {
+          show('s-kicked');
+        });
+      }
+    }).catch(function() {});
+  }, 4000);
+}
+
+function resetLogin() {
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  currentUser = null;
+  stopPolling();
+  stopPresence();
+  stopInactivityWatch();
+  inactToast.style.display = 'none';
+  warnToastShown = false;
+}
+
+/* ═══════════════════════════════════════════════════
+   GAME FEEDBACK
+═══════════════════════════════════════════════════ */
+function submitGameFeedback() {
+  var reqText    = document.getElementById('game-request-txt').value.trim();
+  var brokenText = document.getElementById('game-broken-txt').value.trim();
+  if (!reqText && !brokenText) return;
+  var okMsg = document.getElementById('send-ok-msg');
+  var btn   = document.querySelector('#s-approved .btn[onclick="submitGameFeedback()"]');
+  okMsg.style.display = 'none';
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  showActionLoader('Sending your request...');
+
+  var ts = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
+  var updates = {};
+  if (reqText) {
+    updates['gameRequests/' + db.ref('gameRequests').push().key] =
+      { type: 'request', username: currentUser, text: reqText, time: ts };
+  }
+  if (brokenText) {
+    updates['gameRequests/' + db.ref('gameRequests').push().key] =
+      { type: 'broken', username: currentUser, text: brokenText, time: ts };
+  }
+  db.ref('/').update(updates).then(function() {
+    document.getElementById('game-request-txt').value = '';
+    document.getElementById('game-broken-txt').value  = '';
+    okMsg.style.display = 'block';
+    setTimeout(function() { okMsg.style.display = 'none'; }, 3500);
+  }).catch(function() {
+    alert('Connection error. Try again.');
+  }).finally(function() {
+    hideActionLoader();
+    if (btn) { btn.disabled = false; btn.textContent = 'Send →'; }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   BEFOREUNLOAD — mirrors original exactly
+═══════════════════════════════════════════════════ */
+window.addEventListener('beforeunload', function() {
+  stopPolling();
+  stopPresence();
+  stopInactivityWatch();
+
+  var s = nowStamp();
+
+  // Admin closed tab
+  if (!currentUser) return;
+  if (navigatingToHub) return;
+  if (!document.getElementById('s-approved').classList.contains('active')) return;
+
+  var duration = loginTime ? formatDuration(Date.now() - loginTime) : null;
+  var logEntry = { username: currentUser, event: 'logged-out', date: s.date, time: s.time };
+  if (duration) logEntry.duration = duration;
+  fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json',
+    { method: 'POST', body: JSON.stringify(logEntry), keepalive: true }
+  );
+  fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(currentUser) + '.json',
+    { method: 'DELETE', keepalive: true }
+  );
+});
+
+/* ═══════════════════════════════════════════════════
+   INIT — mirrors original
+═══════════════════════════════════════════════════ */
+
+// If user refreshes login.html while they had a hub session, clear it
+// (their JS state is gone on refresh so they'd be stuck)
+(function() {
+  var nav = performance.getEntriesByType('navigation')[0];
+  var isReload = nav ? nav.type === 'reload' : (performance.navigation && performance.navigation.type === 1);
+  if (isReload) {
+    var prevUser = sessionStorage.getItem('clocker_user');
+    if (prevUser) {
+      var now = new Date();
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
+        method: 'POST',
+        body: JSON.stringify({ username: prevUser, event: 'hub-closed', date: now.toLocaleDateString(), time: now.toLocaleTimeString(), note: 'page refresh' }),
+        keepalive: true
+      });
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + prevUser.toLowerCase().replace(/[.#$[\]]/g, '_') + '.json', {
+        method: 'DELETE', keepalive: true
+      });
+    }
+    sessionStorage.removeItem('clocker_user');
+    sessionStorage.removeItem('clocker_login_time');
+  }
+})();
+
+if (sessionStorage.getItem('clocker_kicked') === '1') {
+  sessionStorage.removeItem('clocker_kicked');
+  show('s-kicked');
+}
+
+// Real-time lockdown watcher — kicks anyone on the login page when admin locks down
+db.ref('lockdown/active').on('value', function(snap) {
+  if (snap.val() === true) {
+    var active = document.querySelector('.screen.active');
+    var kickableScreens = ['s-login', 's-register', 's-approved', 's-pending'];
+    if (active && kickableScreens.indexOf(active.id) !== -1) {
+      stopPolling();
+      stopPresence();
+      if (currentUser && active.id === 's-approved') {
+        var s = nowStamp();
+        fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
+          method: 'POST',
+          body: JSON.stringify({ username: currentUser, event: 'lockdown-logout', date: s.date, time: s.time }),
+          keepalive: true
+        });
+        fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(currentUser) + '.json',
+          { method: 'DELETE', keepalive: true });
+      }
+      show('s-lockdown');
+    }
+  } else if (snap.val() === false) {
+    var active = document.querySelector('.screen.active');
+    if (active && active.id === 's-lockdown') show('s-login');
+  }
+});
+
+/* ── PASSWORD TOGGLE & CAPS LOCK ── */
+function togglePass(inputId, btn) {
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  var showing = inp.type === 'text';
+  inp.type = showing ? 'password' : 'text';
+  // Swap between open-eye and slashed-eye SVG
+  var svg = btn.querySelector('svg');
+  if (svg) {
+    svg.innerHTML = showing
+      ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+      : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  }
+  btn.style.color = showing ? '' : 'var(--accent-blue)';
+}
+
+function checkCaps(e, warnId) {
+  var warn = document.getElementById(warnId);
+  if (!warn) return;
+  var on = e.getModifierState && e.getModifierState('CapsLock');
+  warn.style.display = on ? 'flex' : 'none';
+}
+
+
+(function() {
+  var loader = document.getElementById('loader');
+  if (!loader) return;
+  var MIN_MS = 1600;
+  var start  = Date.now();
+  function dismiss() {
+    var delay = Math.max(0, MIN_MS - (Date.now() - start));
+    setTimeout(function() { loader.classList.add('hidden'); }, delay);
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(dismiss);
+  else window.addEventListener('load', dismiss);
+})();
+
+</script>
+<script>
+(function() {
+  /* Single-tab enforcement for login.html
+     Uses localStorage to claim a slot. If another login tab already holds it,
+     redirect to a simple "already open" page-replace so there's no loop.      */
+  var KEY   = 'gd_login_tab';
+  var PING  = 'gd_login_ping';
+  var MY_ID = Math.random().toString(36).slice(2);
+
+  var held = localStorage.getItem(KEY);
+  if (held && held !== MY_ID) {
+    // Ping the holder to confirm it's alive
+    localStorage.setItem(PING, held + ':' + Date.now());
+    setTimeout(function() {
+      if (localStorage.getItem(KEY) !== MY_ID) {
+        // Another tab is alive — show duplicate notice
+        document.body.innerHTML = [
+          '<style>body{background:#060d1a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:Outfit,sans-serif;color:#f1f5f9;}',
+          '.box{text-align:center;padding:40px;border:1px solid rgba(56,189,248,0.18);border-radius:12px;background:rgba(8,15,30,0.9);max-width:380px;}',
+          'h2{font-family:Orbitron,sans-serif;font-size:16px;letter-spacing:3px;color:#38bdf8;margin-bottom:14px;}',
+          'p{font-size:13px;color:rgba(56,189,248,0.45);line-height:1.9;margin-bottom:24px;}',
+          'button{padding:10px 28px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.35);color:#38bdf8;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;border-radius:6px;cursor:pointer;}</style>',
+          '<div class="box"><h2>Already Open</h2>',
+          '<p>The Account Portal is already open<br>in another tab. Please use that tab.</p>',
+          '<button onclick="window.close()">Close This Tab</button></div>'
+        ].join('');
+        return;
+      }
+    }, 400);
+  }
+  localStorage.setItem(KEY, MY_ID);
+
+  // Respond to pings so the new tab backs off
+  window.addEventListener('storage', function(e) {
+    if (e.key === PING && e.newValue && e.newValue.startsWith(MY_ID + ':'))
+      localStorage.setItem(KEY, MY_ID);
+  });
+  window.addEventListener('beforeunload', function() {
+    if (localStorage.getItem(KEY) === MY_ID) localStorage.removeItem(KEY);
+  });
+})();
+</script>
+
+<!-- SPIDERWEB BACKGROUND -->
+<script src="spiderweb.js"></script>
+</body>
+</html>

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Google Drive</title>
+    <script src="security.js"></script>
+    <script>
+      (function() {
+        // ── Auth + reload guard ─────────────────────────────────────────────
+        var u = sessionStorage.getItem('clocker_user');
+        if (!u || !u.trim()) { window.location.replace('login.html'); return; }
+
+        var nav = performance.getEntriesByType('navigation')[0];
+        var isReload = nav ? nav.type === 'reload' : (performance.navigation && performance.navigation.type === 1);
+        if (isReload) {
+          sessionStorage.removeItem('clocker_user');
+          sessionStorage.removeItem('clocker_login_time');
+          window.location.replace('login.html');
+          return;
+        }
+
+        // ── Single-tab enforcement ──────────────────────────────────────────
+        var KEY   = 'gd_hub_tab';
+        var PING  = 'gd_hub_ping';
+        var MY_ID = Math.random().toString(36).slice(2);
+
+        var held = localStorage.getItem(KEY);
+        if (held && held !== MY_ID) {
+          localStorage.setItem(PING, held + ':' + Date.now());
+          setTimeout(function() {
+            if (localStorage.getItem(KEY) !== MY_ID) {
+              document.body.innerHTML = [
+                '<style>body{background:#060d1a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:Outfit,sans-serif;color:#f1f5f9;}',
+                '.box{text-align:center;padding:40px;border:1px solid rgba(56,189,248,0.18);border-radius:12px;background:rgba(8,15,30,0.9);max-width:380px;}',
+                'h2{font-family:Orbitron,sans-serif;font-size:16px;letter-spacing:3px;color:#38bdf8;margin-bottom:14px;}',
+                'p{font-size:13px;color:rgba(56,189,248,0.45);line-height:1.9;margin-bottom:24px;}',
+                'button{padding:10px 28px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.35);color:#38bdf8;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;border-radius:6px;cursor:pointer;}</style>',
+                '<div class="box"><h2>Already Open</h2>',
+                '<p>The Game Hub is already open<br>in another tab. Please use that tab.</p>',
+                '<button onclick="window.close()">Close This Tab</button></div>'
+              ].join('');
+              return;
+            }
+          }, 400);
+        }
+        localStorage.setItem(KEY, MY_ID);
+
+        window.addEventListener('storage', function(e) {
+          if (e.key === PING && e.newValue && e.newValue.startsWith(MY_ID + ':'))
+            localStorage.setItem(KEY, MY_ID);
+        });
+        window.addEventListener('beforeunload', function() {
+          if (localStorage.getItem(KEY) === MY_ID) localStorage.removeItem(KEY);
+        });
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="progress-bar"></div>
+<canvas id="spiderweb"></canvas>
+
+<!-- SIDEBAR built by games.js -->
+<div class="sidebar" id="sidebar"></div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+    <h1>My Drive</h1>
+    <div id="clock"></div>
+
+    <div class="search-area">
+        <div class="search-wrap" id="search-wrap">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="rgba(56,189,248,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="searchInput" placeholder="Search games..." autocomplete="off" />
+            <span id="search-clear" class="search-clear-btn">&times;</span>
+        </div>
+
+        <div id="no-results" style="display:none; text-align:center; margin-top: 20px; color: var(--accent-blue);">
+            No results found for "<span id="no-results-term"></span>"
+        </div>
+        <br>
+
+        <!-- Info cards -->
+        <div class="site-info">
+            <div class="site-info-grid">
+                <div class="info-card">
+                    <div class="info-icon">🎮</div>
+                    <div class="info-text"><strong>1000+ Games</strong><span>Classic and modern titles</span></div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">⚡</div>
+                    <div class="info-text"><strong>No Downloads</strong><span>Play instantly in browser</span></div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">🔍</div>
+                    <div class="info-text"><strong>Easy Search</strong><span>Use the bar above</span></div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">🛡️</div>
+                    <div class="info-text"><strong>Panic Button</strong><span>Press Esc to leave instantly</span></div>
+                </div>
+            </div>
+
+            <div class="search-instructions">
+                Games are sorted A–Z by letter · Click any section header to collapse it<br>
+                Give it a moment to load · Press <strong>Esc</strong> to activate cloaker
+            </div>
+
+            <div class="quick-searches">
+                <strong>Quick Searches:</strong>
+                <div class="quick-tags">
+                            <code>2048</code>
+                            <code>basketballlegends</code>
+                            <code>Bitlife</code>
+                            <code>Blockblast</code>
+                            <code>btd 5</code>
+                            <code>Burritobison</code>
+                            <code>Cookieclicker</code>
+                            <code>drifthuntersmerge</code>
+                            <code>Eaglercraft L 19 V 0 7 0 Offline Signed</code>
+                            <code>FNAF</code>
+                            <code>Geometrydashscratch</code>
+                            <code>Gun Spin</code>
+                            <code>Happywheels</code>
+                            <code>mario 3</code>
+                            <code>monkeymart</code>
+                            <code>oregontrail</code>
+                            <code>retrobowl</code>
+                            <code>rooftopsnipers</code>
+                            <code>slopeplus</code>
+                            <code>snowrider</code>
+                            <code>Subwaysurfersbarcelona</code>
+                            <code>Suika</code>
+                            <code>supermario</code>
+                            <code>vex</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sections-container"></div>
+</div>
+
+<!-- BACK TO TOP -->
+<button id="back-to-top">↑</button>
+
+<!-- THEME SWITCHER — buttons injected by games.js -->
+<div id="theme-switcher"></div>
+
+<!-- Firebase compat SDK — must load before deferred scripts that reference firebase global -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<script src="spiderweb.js" defer></script>
+<script src="games.js" defer></script>
+
+<script>
+(function() {
+  /* ═══════════════════════════════════════════════════
+     FIREBASE CONFIG  — same project as login.html
+  ═══════════════════════════════════════════════════ */
+  const firebaseConfig = {
+    apiKey: "AIzaSyBJ4lMm2Nf9u6UeJLHH-Ap9z7lX9wBFEuc",
+    authDomain: "drive-portal-d7eb1.firebaseapp.com",
+    databaseURL: "https://drive-portal-d7eb1-default-rtdb.firebaseio.com",
+    projectId: "drive-portal-d7eb1",
+    storageBucket: "drive-portal-d7eb1.firebasestorage.app",
+    messagingSenderId: "602318258720",
+    appId: "1:602318258720:web:e81d1c6ec4c06bd5da3245"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+
+  /* =====================================================
+     SECURITY & ANTI-INSPECT
+  ===================================================== */
+  document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.keyCode === 123 ||
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
+        (e.ctrlKey && e.keyCode === 85) ||
+        (e.ctrlKey && e.keyCode === 83)) {
+      e.preventDefault();
+      return false;
+    }
+  });
+  const username = sessionStorage.getItem('clocker_user');
+  if (!username) return;
+
+  /* ═══════════════════════════════════════════════════
+     HELPERS — must match login.html exactly
+  ═══════════════════════════════════════════════════ */
+  function safeKey(u) {
+    return u.toLowerCase().replace(/[.#$[\]]/g, '_');
+  }
+
+  function formatDuration(ms) {
+    const t = Math.floor(ms / 1000);
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+
+  /* ═══════════════════════════════════════════════════
+     CONFIG (loaded from Firebase, with safe defaults)
+  ═══════════════════════════════════════════════════ */
+  let INACTIVITY_WARN_MS = 40 * 60 * 1000;  // default 40 min
+  let INACTIVITY_OUT_MS  = 45 * 60 * 1000;  // default 45 min
+  let WIPE_HOUR          = 15;               // default 3 PM
+  let WIPE_MINUTE        = 0;
+  let WIPE_ENABLED       = true;
+
+  // Load config from Firebase and apply it
+  db.ref('config').get().then(function(snap) {
+    if (!snap.exists()) return;
+    const cfg = snap.val();
+    if (cfg.inactivityWarnMin  > 0) INACTIVITY_WARN_MS = cfg.inactivityWarnMin  * 60 * 1000;
+    if (cfg.inactivityLogoutMin > 0) INACTIVITY_OUT_MS  = cfg.inactivityLogoutMin * 60 * 1000;
+    if (cfg.wipeHour   !== undefined) WIPE_HOUR    = cfg.wipeHour;
+    if (cfg.wipeMinute !== undefined) WIPE_MINUTE  = cfg.wipeMinute;
+    if (cfg.wipeEnabled !== undefined) WIPE_ENABLED = cfg.wipeEnabled;
+  }).catch(function() {});
+
+  /* ═══════════════════════════════════════════════════
+     STATE
+  ═══════════════════════════════════════════════════ */
+  let lastActivity   = Date.now();
+  let warnToastShown = false;
+  let loggedOut      = false;
+  let _wipeInterval      = null;
+  let _inactInterval     = null;
+  let _presInterval      = null;
+  let _lockdownRef       = null;
+  let _userRef           = null;
+
+  /* ═══════════════════════════════════════════════════
+     INACTIVITY WARNING TOAST
+  ═══════════════════════════════════════════════════ */
+  const toast = document.createElement('div');
+  toast.id = 'inactivity-toast';
+  toast.innerHTML = `
+    <span>⚠️ You'll be logged out in <strong>5 minutes</strong> due to inactivity.</span>
+    <button>Stay</button>
+  `;
+  Object.assign(toast.style, {
+    display: 'none', position: 'fixed', bottom: '24px', left: '50%',
+    transform: 'translateX(-50%)', zIndex: '9999',
+    background: 'rgba(8,15,30,0.97)', border: '1px solid rgba(251,146,60,0.5)',
+    borderRadius: '8px', padding: '14px 20px', color: '#fb923c',
+    fontFamily: "'Outfit', sans-serif", fontSize: '13px',
+    boxShadow: '0 0 24px rgba(251,146,60,0.2)',
+    alignItems: 'center', gap: '16px', whiteSpace: 'nowrap'
+  });
+  const toastBtn = toast.querySelector('button');
+  toastBtn.style.cssText = 'background:rgba(251,146,60,0.12);border:1px solid rgba(251,146,60,0.4);color:#fb923c;padding:6px 14px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;';
+  document.body.appendChild(toast);
+
+  toastBtn.addEventListener('click', () => {
+    lastActivity = Date.now();
+    toast.style.display = 'none';
+    warnToastShown = false;
+  });
+
+  /* ═══════════════════════════════════════════════════
+     LOG ACTIVITY
+  ═══════════════════════════════════════════════════ */
+  const MAX_LOG = 200;
+  async function logActivity(user, event, extra) {
+    const now = new Date();
+    const entry = {
+      username: user,
+      event,
+      date: now.toLocaleDateString(),
+      time: now.toLocaleTimeString(),
+      ...extra
+    };
+    try {
+      await db.ref('activityLog').push(entry);
+      // Prune to MAX_LOG so Firebase never grows unboundedly
+      const snap = await db.ref('activityLog').once('value');
+      const keys = [];
+      snap.forEach(child => keys.push(child.key));
+      if (keys.length > MAX_LOG) {
+        const updates = {};
+        keys.slice(0, keys.length - MAX_LOG).forEach(k => { updates['activityLog/' + k] = null; });
+        await db.ref('/').update(updates);
+      }
+    } catch(e) {}
+  }
+
+  /* ═══════════════════════════════════════════════════
+     PRESENCE
+  ═══════════════════════════════════════════════════ */
+  function updatePresence() {
+    if (loggedOut) return;
+    try {
+      db.ref('presence/' + safeKey(username)).set({
+        username: username,
+        page: 'hub',
+        heartbeat: Date.now()
+      });
+    } catch(e) {}
+  }
+
+  function clearPresence() {
+    try { db.ref('presence/' + safeKey(username)).remove(); } catch(e) {}
+  }
+
+  /* ═══════════════════════════════════════════════════
+     FORCE LOGOUT (kick / wipe / inactivity)
+  ═══════════════════════════════════════════════════ */
+  async function handleForceLogout(reason, redirect, isKicked) {
+    if (loggedOut) return;
+    loggedOut = true;
+
+    // Detach all Firebase listeners and clear all intervals
+    if (_lockdownRef) { try { _lockdownRef.off(); } catch(e) {} _lockdownRef = null; }
+    if (_userRef)     { try { _userRef.off();     } catch(e) {} _userRef     = null; }
+    if (_wipeInterval)  { clearInterval(_wipeInterval);  _wipeInterval  = null; }
+    if (_inactInterval) { clearInterval(_inactInterval); _inactInterval = null; }
+    if (_presInterval)  { clearInterval(_presInterval);  _presInterval  = null; }
+
+    if (isKicked) sessionStorage.setItem('clocker_kicked', '1');
+
+    const lt = sessionStorage.getItem('clocker_login_time');
+    const extra = {};
+    if (lt) extra.duration = formatDuration(Date.now() - parseInt(lt, 10));
+
+    try { await logActivity(username, reason, extra); } catch(e) {}
+    try { await clearPresence(); } catch(e) {}
+
+    sessionStorage.removeItem('clocker_user');
+    sessionStorage.removeItem('clocker_login_time');
+
+    if (redirect) window.location.href = redirect;
+  }
+
+
+  /* ═══════════════════════════════════════════════════
+     FIREBASE DISCONNECT BANNER
+  ═══════════════════════════════════════════════════ */
+  db.ref('.info/connected').on('value', (snap) => {
+    let banner = document.getElementById('firebase-status');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'firebase-status';
+      Object.assign(banner.style, {
+        position:'fixed', top:'0', left:'0', right:'0', zIndex:'99999',
+        padding:'8px 16px', textAlign:'center', fontSize:'12px',
+        fontFamily:"'Outfit',sans-serif", letterSpacing:'1px',
+        transition:'opacity 0.4s', display:'none'
+      });
+      document.body.appendChild(banner);
+    }
+    if (snap.val() === true) {
+      banner.style.display = 'none';
+    } else {
+      banner.textContent = '⚠ Connection lost — attempting to reconnect…';
+      banner.style.background = 'rgba(239,68,68,0.9)';
+      banner.style.color = '#fff';
+      banner.style.display = 'block';
+    }
+  });
+
+  /* ═══════════════════════════════════════════════════
+     REAL-TIME LOCKDOWN WATCHER
+     If admin locks down while user is in hub, log them out
+  ═══════════════════════════════════════════════════ */
+  _lockdownRef = db.ref('lockdown/active');
+  _lockdownRef.on('value', (snap) => {
+    if (loggedOut) return;
+    if (snap.val() === true) {
+      handleForceLogout('lockdown-logout', 'login.html');
+    }
+  });
+
+  /* ═══════════════════════════════════════════════════
+     REAL-TIME KICK WATCHER
+     Watches users/<safeKey> directly — same node login writes to
+  ═══════════════════════════════════════════════════ */
+  _userRef = db.ref('users/' + safeKey(username));
+  _userRef.on('value', (snap) => {
+    if (loggedOut) return;
+    if (!snap.exists()) return;
+    const u = snap.val();
+    if (u.status === 'kicked') {
+      handleForceLogout('kicked-from-hub', 'login.html', true);
+    }
+  });
+
+  /* ═══════════════════════════════════════════════════
+     3PM DAILY WIPE
+     Stored in Firebase so it only fires once across all tabs
+  ═══════════════════════════════════════════════════ */
+  // Poll every 30s to check if it's wipe time (more reliable than .on listener timing)
+  _wipeInterval = setInterval(async function() {
+    if (loggedOut || !WIPE_ENABLED) return;
+    const now = new Date();
+    const today = now.toLocaleDateString();
+    if (now.getHours() === WIPE_HOUR && now.getMinutes() === WIPE_MINUTE) {
+      try {
+        const snap = await db.ref('lastWipeDate').get();
+        if (snap.val() !== today) {
+          // Race-safe: set date first so only one tab triggers the wipe
+          await db.ref('lastWipeDate').set(today);
+          await db.ref('presence').remove();
+          await logActivity('SYSTEM', 'daily-wipe');
+          handleForceLogout('daily-wipe', 'login.html');
+        }
+      } catch(e) {}
+    }
+  }, 30000);
+
+  /* ═══════════════════════════════════════════════════
+     INACTIVITY CHECK
+  ═══════════════════════════════════════════════════ */
+  _inactInterval = setInterval(() => {
+    if (loggedOut) return;
+    const idle = Date.now() - lastActivity;
+    if (idle >= INACTIVITY_OUT_MS) {
+      handleForceLogout('inactivity-logout', 'login.html');
+    } else if (idle >= INACTIVITY_WARN_MS && !warnToastShown) {
+      warnToastShown = true;
+      toast.style.display = 'flex';
+    }
+  }, 10000);  // check every 10s for accuracy
+
+  ['mousemove','mousedown','keydown','touchstart','scroll'].forEach(ev => {
+    window.addEventListener(ev, () => {
+      lastActivity = Date.now();
+      if (warnToastShown) { toast.style.display = 'none'; warnToastShown = false; }
+    }, { passive: true });
+  });
+
+  /* ═══════════════════════════════════════════════════
+     INIT
+  ═══════════════════════════════════════════════════ */
+  updatePresence();
+  _presInterval = setInterval(updatePresence, 20000);
+
+  // Track whether we're navigating away intentionally vs closing/refreshing
+  let navigatingAway = false;
+
+
+  window.addEventListener('beforeunload', () => {
+    if (loggedOut) return; // already handled (kick/inactivity)
+
+    // Cancel the onDisconnect handlers FIRST — the fetch below will do the
+    // logging instead, so we don't want both to fire and double-log.
+    try { _presRef.onDisconnect().cancel();    } catch(e) {}
+    try { _discLogRef.onDisconnect().cancel(); } catch(e) {}
+
+    clearPresence();
+
+    // Log the hub logout with duration
+    const lt = sessionStorage.getItem('clocker_login_time');
+    const now = new Date();
+    const entry = {
+      username: username,
+      event: 'hub-closed',
+      date: now.toLocaleDateString(),
+      time: now.toLocaleTimeString()
+    };
+    if (lt) entry.duration = formatDuration(Date.now() - parseInt(lt, 10));
+
+    fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+      keepalive: true
+    });
+    fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json', {
+      method: 'DELETE',
+      keepalive: true
+    });
+  });
+
+
+})();
+</script>
+</body>
+</html>
