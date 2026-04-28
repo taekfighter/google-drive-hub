@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-CBRC0YZ54S"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-CBRC0YZ54S");
+</script>
+
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-CBRC0YZ54S");
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Home - Google Drive</title>
@@ -797,10 +812,7 @@ function loginUser() {
 
   fbGet().then(function(data) {
     var existing = getUser(data, user);
-    return hashPassword(pass).then(function(hashed) {
-    // Accept both hashed and legacy plaintext passwords so existing users aren't locked out
-    var passwordMatch = existing && (existing.password === hashed || existing.password === pass);
-    if (!existing || !passwordMatch) {
+    if (!existing || existing.password !== pass) {
       loginAttempts++;
       hideActionLoader();
       if (loginAttempts >= MAX_ATTEMPTS) {
@@ -838,7 +850,6 @@ function loginUser() {
       hideActionLoader(); show('s-kicked');
     }
     btn.disabled = false; btn.textContent = 'Login →';
-    }); // end hashPassword.then
   }).catch(function(e) {
     hideActionLoader();
     var msg = (e && e.name === 'AbortError') ? 'Request timed out. Check your connection.' : 'Connection error. Please try again.';
@@ -871,14 +882,12 @@ function registerUser() {
       return Promise.reject('duplicate');
     }
     var now = new Date();
-    return hashPassword(pass).then(function(hashed) {
-      var newUser = { username: user, password: hashed, status: 'pending', time: now.toLocaleTimeString() };
-      var logKey = db.ref('activityLog').push().key;
-      var updates = {};
-      updates['users/' + safeKey(user)] = newUser;
-      updates['activityLog/' + logKey] = buildLogEntry(user, 'registered');
-      return db.ref('/').update(updates);
-    });
+    var newUser = { username: user, password: pass, status: 'pending', time: now.toLocaleTimeString() };
+    var logKey = db.ref('activityLog').push().key;
+    var updates = {};
+    updates['users/' + safeKey(user)] = newUser;
+    updates['activityLog/' + logKey] = buildLogEntry(user, 'registered');
+    return db.ref('/').update(updates);
   }).then(function() {
     currentUser = user;
     hideActionLoader();
