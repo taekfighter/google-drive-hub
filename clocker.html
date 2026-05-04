@@ -473,6 +473,11 @@
   window.addEventListener('beforeunload', () => {
     if (loggedOut) return; // already handled (kick/inactivity)
 
+    // Prevent duplicate logout when Chromebook lid closes then reopens
+    const logoutKey = 'hub_logout_logged_' + safeKey(username);
+    if (sessionStorage.getItem(logoutKey) === '1') return;
+    sessionStorage.setItem(logoutKey, '1');
+
     // Cancel the onDisconnect handlers FIRST — the fetch below will do the
     // logging instead, so we don't want both to fire and double-log.
     try { _presRef.onDisconnect().cancel();    } catch(e) {}

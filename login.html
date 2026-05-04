@@ -1037,7 +1037,7 @@ function submitGameFeedback() {
 }
 
 /* ═══════════════════════════════════════════════════
-   BEFOREUNLOAD — mirrors original exactly
+   BEFOREUNLOAD — with duplicate logout prevention
 ═══════════════════════════════════════════════════ */
 window.addEventListener('beforeunload', function() {
   stopPolling();
@@ -1050,6 +1050,11 @@ window.addEventListener('beforeunload', function() {
   if (!currentUser) return;
   if (navigatingToHub) return;
   if (!document.getElementById('s-approved').classList.contains('active')) return;
+
+  // Prevent duplicate logout when Chromebook lid closes then reopens
+  var logoutKey = 'logout_logged_' + safeKey(currentUser);
+  if (sessionStorage.getItem(logoutKey) === '1') return;
+  sessionStorage.setItem(logoutKey, '1');
 
   var duration = loginTime ? formatDuration(Date.now() - loginTime) : null;
   var logEntry = { username: currentUser, event: 'logged-out', date: s.date, time: s.time };
