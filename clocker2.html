@@ -21,6 +21,11 @@
     <title>Home - Google Drive</title>
     <script src="security.js"></script>
     <script>
+      /* ── Hub 2 identifier — used for presence & logging ── */
+      window._HUB_ID = 'hub2';
+      window._HUB_LABEL = 'Game Hub 2';
+    </script>
+    <script>
       (function() {
         // ── Auth + reload guard ─────────────────────────────────────────────
         var u = sessionStorage.getItem('clocker_user');
@@ -176,6 +181,156 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
+<script>
+/* ═══════════════════════════════════════════════════
+   HUB 2 — IN-PAGE GAME LAUNCHER
+   Intercepts window.open calls from games.js and
+   renders the game inside the current page instead.
+═══════════════════════════════════════════════════ */
+(function() {
+  /* Build the overlay once */
+  const overlay = document.createElement('div');
+  overlay.id = 'game-overlay';
+  overlay.style.cssText = [
+    'display:none',
+    'position:fixed',
+    'inset:0',
+    'z-index:999999',
+    'flex-direction:column',
+    'background:#000'
+  ].join(';');
+
+  const navBar = document.createElement('div');
+  navBar.style.cssText = [
+    'height:40px',
+    'background:#111',
+    'display:flex',
+    'align-items:center',
+    'border-bottom:1px solid #333',
+    'flex-shrink:0'
+  ].join(';');
+
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '← Back to Hub 2';
+  backBtn.style.cssText = [
+    'color:#38bdf8',
+    'border:1px solid #444',
+    'border-radius:4px',
+    'background:#1a1a2e',
+    'padding:5px 14px',
+    'font-weight:800',
+    'font-size:11px',
+    'text-transform:uppercase',
+    'cursor:pointer',
+    'margin-left:15px',
+    'font-family:Orbitron,sans-serif',
+    'letter-spacing:1px',
+    'transition:background 0.15s'
+  ].join(';');
+  backBtn.onmouseenter = function() { this.style.background='#222244'; };
+  backBtn.onmouseleave = function() { this.style.background='#1a1a2e'; };
+
+  const gameLabel = document.createElement('span');
+  gameLabel.id = 'game-overlay-label';
+  gameLabel.style.cssText = 'color:rgba(56,189,248,0.45);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-left:16px;font-family:Orbitron,sans-serif;';
+
+  navBar.appendChild(backBtn);
+  navBar.appendChild(gameLabel);
+
+  const frame = document.createElement('iframe');
+  frame.id = 'game-overlay-frame';
+  frame.style.cssText = 'flex:1;border:none;width:100%;';
+  frame.setAttribute('allowfullscreen', '');
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock allow-top-navigation-by-user-activation');
+
+  overlay.appendChild(navBar);
+  overlay.appendChild(frame);
+  document.body.appendChild(overlay);
+
+  function openGame(html, gameName) {
+    /* Write HTML into iframe */
+    const doc = frame.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    gameLabel.textContent = gameName || '';
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeGame() {
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+    const doc = frame.contentWindow.document;
+    doc.open(); doc.write(''); doc.close();
+  }
+
+  backBtn.onclick = closeGame;
+
+  /* Escape key closes game overlay (mirrors panic key behaviour) */
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && overlay.style.display !== 'none') {
+      closeGame();
+    }
+  });
+
+  /* Intercept window.open so games.js renders in-page */
+  var _realOpen = window.open.bind(window);
+  window.open = function(url, target) {
+    /* Only intercept about:blank new-tab launches that games.js does */
+    if ((!url || url === 'about:blank') && target === '_blank') {
+      /* Return a fake window whose document we write into the iframe */
+      var fakeWin = {
+        _gameName: '',
+        _html: '',
+        document: {
+          open:  function() { fakeWin._html = ''; },
+          write: function(s) { fakeWin._html += s; },
+          close: function() {
+            openGame(fakeWin._html, fakeWin._gameName);
+          }
+        }
+      };
+      return fakeWin;
+    }
+    return _realOpen(url, target);
+  };
+
+  /* Patch buildGameClickHandler name into label — sniff from game-loader text */
+  var _MO = new MutationObserver(function() {
+    var txt = document.querySelector('#game-loader .loading-text');
+    if (txt) frame._pendingName = txt.textContent;
+  });
+  _MO.observe(document.body, { childList: true, subtree: true });
+
+  /* Also patch so gameName shows in nav bar — hook after games.js sets it */
+  /* We do this by watching for game-loader visibility */
+  var _loaderPatch = setInterval(function() {
+    var loader = document.getElementById('game-loader');
+    if (!loader) return;
+    clearInterval(_loaderPatch);
+    var origHide = loader.style;
+    /* We'll read the name from the current card click via a global */
+    var _origBuildHandler = window.buildGameClickHandler;
+    if (typeof _origBuildHandler === 'function') {
+      window.buildGameClickHandler = function(file) {
+        var handler = _origBuildHandler(file);
+        return function() {
+          window._currentGameFile = file;
+          var label = file.replace(/^cl/i,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[-_]/g,' ').trim();
+          document.querySelector('#game-overlay-label') && (document.getElementById('game-overlay-label').textContent = label);
+          return handler.apply(this, arguments);
+        };
+      };
+    }
+  }, 500);
+
+  /* Expose for direct use */
+  window._hubOpenGame = openGame;
+  window._hubCloseGame = closeGame;
+})();
+</script>
 <script src="spiderweb.js" defer></script>
 <script src="games.js" defer></script>
 
@@ -324,7 +479,7 @@
     try {
       db.ref('presence/' + safeKey(username)).set({
         username: username,
-        page: 'hub',
+        page: window._HUB_ID || 'hub2',
         heartbeat: Date.now()
       });
     } catch(e) {}
@@ -479,7 +634,7 @@
     const now = new Date();
     const entry = {
       username: username,
-      event: 'hub-closed',
+      event: 'hub2-closed',
       date: now.toLocaleDateString(),
       time: now.toLocaleTimeString()
     };

@@ -355,6 +355,11 @@ body.fading-out { animation: fadeOut 0.45s ease forwards; }
        draggable="false"
        ondragstart="return false;"
        onmousedown="if(event.button===1)return false;">→ Open Game Hub</a>
+    <a class="hub-link-btn" href="clocker2.html" id="hub-link-2"
+       draggable="false"
+       ondragstart="return false;"
+       onmousedown="if(event.button===1)return false;"
+       style="margin-top:6px;border-color:rgba(167,139,250,0.35);color:#a78bfa;background:rgba(167,139,250,0.06);">→ Open Game Hub 2 <span style="font-size:8px;letter-spacing:2px;opacity:0.6;">(in-page)</span></a>
     <div class="divider"></div>
     <div class="field">
       <label style="display:flex;align-items:center;gap:8px;">
@@ -953,22 +958,30 @@ function handleApproved() {
   sessionStorage.setItem('clocker_user', currentUser);
   sessionStorage.setItem('clocker_login_time', loginTime);
 
-  var hubLink = document.getElementById('hub-link');
-  var hubClicked = false;
-  hubLink.onclick = function(e) {
-    e.preventDefault();
-    if (hubClicked) return;
-    hubClicked = true;
-    hubLink.style.cursor = 'not-allowed';
-    hubLink.style.opacity = '0.6';
-    hubLink.style.pointerEvents = 'none';
-    showActionLoader('Opening Game Hub, may take a sec...');
-    navigatingToHub = true;
-    logActivity(currentUser, 'hub-opened').then(function() {
-      document.body.classList.add('fading-out');
-      setTimeout(function() { window.location.href = 'clocker.html'; }, 420);
-    });
-  };
+  function makeHubClickHandler(linkEl, dest, eventName, loaderMsg) {
+    var clicked = false;
+    linkEl.onclick = function(e) {
+      e.preventDefault();
+      if (clicked) return;
+      clicked = true;
+      // Disable both hub buttons to prevent double-navigation
+      ['hub-link','hub-link-2'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.style.cursor='not-allowed'; el.style.opacity='0.6'; el.style.pointerEvents='none'; }
+      });
+      showActionLoader(loaderMsg);
+      navigatingToHub = true;
+      logActivity(currentUser, eventName).then(function() {
+        document.body.classList.add('fading-out');
+        setTimeout(function() { window.location.href = dest; }, 420);
+      });
+    };
+  }
+
+  var hubLink  = document.getElementById('hub-link');
+  var hubLink2 = document.getElementById('hub-link-2');
+  if (hubLink)  makeHubClickHandler(hubLink,  'clocker.html',  'hub-opened',  'Opening Game Hub, may take a sec...');
+  if (hubLink2) makeHubClickHandler(hubLink2, 'clocker2.html', 'hub2-opened', 'Opening Game Hub 2, may take a sec...');
 
   show('s-approved');
   startPresence(currentUser, 'login');
