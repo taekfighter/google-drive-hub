@@ -772,7 +772,11 @@ function logActivityAndPresence(username, event, page) {
   // push returns a new key — use set with timestamp key instead for atomic update
   var logKey = db.ref('activityLog').push().key;
   updates['activityLog/' + logKey] = entry;
-  updates['presence/' + safeKey(username)] = { page: page, heartbeat: Date.now() };
+  updates['presence/' + safeKey(username)] = { 
+    username: username,  // Add username field
+    page: page, 
+    heartbeat: Date.now() 
+  };
   return db.ref('/').update(updates);
 }
 
@@ -781,13 +785,17 @@ function logActivityAndPresence(username, event, page) {
 ═══════════════════════════════════════════════════ */
 function setPresenceOnline(username, page) {
   if (!username) return;
-  db.ref('presence/' + safeKey(username)).set({ page: page, heartbeat: Date.now() });
+  db.ref('presence/' + safeKey(username)).set({ 
+    username: username,  // Add username field for consistency
+    page: page, 
+    heartbeat: Date.now() 
+  });
 }
 
 function startPresence(username, page) {
   stopPresence();
   setPresenceOnline(username, page);
-  presenceTimer = setInterval(function() { setPresenceOnline(username, page); }, 25000);
+  presenceTimer = setInterval(function() { setPresenceOnline(username, page); }, 10000);  // Update every 10s for faster detection
 }
 
 function stopPresence() {

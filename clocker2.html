@@ -262,8 +262,20 @@
   function closeGame() {
     overlay.style.display = 'none';
     document.body.style.overflow = '';
-    const doc = frame.contentWindow.document;
-    doc.open(); doc.write(''); doc.close();
+    
+    // Stop all iframe content completely
+    try {
+      // First clear the iframe source to stop all running scripts/audio
+      frame.src = 'about:blank';
+      // Then clear the document as backup
+      const doc = frame.contentWindow.document;
+      doc.open(); 
+      doc.write(''); 
+      doc.close();
+    } catch(e) {
+      // Fallback if accessing contentWindow fails
+      frame.src = 'about:blank';
+    }
   }
 
   backBtn.onclick = closeGame;
