@@ -262,20 +262,22 @@
   function closeGame() {
     overlay.style.display = 'none';
     document.body.style.overflow = '';
-    
-    // Stop all iframe content completely
+
+    // Stop all iframe content by navigating it to blank — this kills all
+    // scripts, audio, timers running INSIDE the iframe without touching
+    // any timers/intervals that belong to the parent page.
     try {
-      // First clear the iframe source to stop all running scripts/audio
-      frame.src = 'about:blank';
-      // Then clear the document as backup
-      const doc = frame.contentWindow.document;
-      doc.open(); 
-      doc.write(''); 
-      doc.close();
-    } catch(e) {
-      // Fallback if accessing contentWindow fails
-      frame.src = 'about:blank';
-    }
+      // Try to stop audio/video gracefully first
+      var iDoc = frame.contentWindow && frame.contentWindow.document;
+      if (iDoc) {
+        iDoc.querySelectorAll('audio, video').forEach(function(m) {
+          try { m.pause(); m.src = ''; } catch(e) {}
+        });
+      }
+    } catch(e) {}
+
+    // Replacing src is the safest way to fully kill the iframe's JS environment
+    frame.src = 'about:blank';
   }
 
   backBtn.onclick = closeGame;
@@ -294,13 +296,14 @@
     if ((!url || url === 'about:blank') && target === '_blank') {
       /* Return a fake window whose document we write into the iframe */
       var fakeWin = {
-        _gameName: '',
+        _gameName: window._pendingGameName || '',
         _html: '',
         document: {
           open:  function() { fakeWin._html = ''; },
           write: function(s) { fakeWin._html += s; },
           close: function() {
             openGame(fakeWin._html, fakeWin._gameName);
+            window._pendingGameName = '';
           }
         }
       };
@@ -309,34 +312,26 @@
     return _realOpen(url, target);
   };
 
-  /* Patch buildGameClickHandler name into label — sniff from game-loader text */
-  var _MO = new MutationObserver(function() {
-    var txt = document.querySelector('#game-loader .loading-text');
-    if (txt) frame._pendingName = txt.textContent;
-  });
-  _MO.observe(document.body, { childList: true, subtree: true });
-
-  /* Also patch so gameName shows in nav bar — hook after games.js sets it */
-  /* We do this by watching for game-loader visibility */
-  var _loaderPatch = setInterval(function() {
-    var loader = document.getElementById('game-loader');
-    if (!loader) return;
-    clearInterval(_loaderPatch);
-    var origHide = loader.style;
-    /* We'll read the name from the current card click via a global */
-    var _origBuildHandler = window.buildGameClickHandler;
-    if (typeof _origBuildHandler === 'function') {
-      window.buildGameClickHandler = function(file) {
-        var handler = _origBuildHandler(file);
-        return function() {
-          window._currentGameFile = file;
-          var label = file.replace(/^cl/i,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[-_]/g,' ').trim();
-          document.querySelector('#game-overlay-label') && (document.getElementById('game-overlay-label').textContent = label);
-          return handler.apply(this, arguments);
-        };
+  /* Hook buildGameClickHandler after games.js loads to capture game names */
+  var _namePatch = setInterval(function() {
+    if (typeof window.buildGameClickHandler !== 'function') return;
+    clearInterval(_namePatch);
+    var _orig = window.buildGameClickHandler;
+    window.buildGameClickHandler = function(file) {
+      var handler = _orig(file);
+      return function() {
+        // Store formatted name so window.open intercept can pick it up
+        var label = file
+          .replace(/^cl/i, '')
+          .replace(/([a-z])([A-Z])/g, '$1 $2')
+          .replace(/[-_]/g, ' ')
+          .trim()
+          .replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        window._pendingGameName = label;
+        return handler.apply(this, arguments);
       };
-    }
-  }, 500);
+    };
+  }, 100);
 
   /* Expose for direct use */
   window._hubOpenGame = openGame;
@@ -631,28 +626,40 @@
      INIT
   ═══════════════════════════════════════════════════ */
   updatePresence();
-  _presInterval = setInterval(updatePresence, 5000); // 5s heartbeat for fast admin updates
+  _presInterval = setInterval(updatePresence, 10000);  // 10s heartbeat - admin timeout is 45s (4.5x buffer)
+
+  // pagehide with persisted=true = tab going into bfcache/energy-saver, NOT a real close
+  window.addEventListener('pagehide', (e) => {
+    if (e.persisted) return; // bfcache suspend — skip logging
+    // Real navigation/close — let beforeunload handle it
+  });
 
   window.addEventListener('beforeunload', () => {
-    if (loggedOut) return; // already handled (kick/inactivity/wipe)
+    if (loggedOut) return;
 
-    // Prevent duplicate logout when Chromebook lid closes then reopens
-    const logoutKey = 'hub_logout_logged_' + safeKey(username);
-    if (sessionStorage.getItem(logoutKey) === '1') return;
-    sessionStorage.setItem(logoutKey, '1');
+    const now = Date.now();
 
-    // Use keepalive fetch only — SDK calls get killed before completing on tab close
+    // 30-second dedup prevents: Chromebook lid cycle, Chrome tab throttle/discard, bfcache restore
+    const logoutKey = 'hub2_logout_ts_' + safeKey(username);
+    const lastLogout = localStorage.getItem(logoutKey);
+    if (lastLogout && (now - parseInt(lastLogout, 10)) < 30000) {
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json', {
+        method: 'DELETE', keepalive: true
+      });
+      return;
+    }
+    localStorage.setItem(logoutKey, now.toString());
+
     const lt = sessionStorage.getItem('clocker_login_time');
-    const now = new Date();
+    const nowDate = new Date();
     const entry = {
       username: username,
-      event: 'hub2-closed',
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString()
+      event: 'logged-off',
+      date: nowDate.toLocaleDateString(),
+      time: nowDate.toLocaleTimeString()
     };
-    if (lt) entry.duration = formatDuration(Date.now() - parseInt(lt, 10));
+    if (lt) entry.duration = formatDuration(now - parseInt(lt, 10));
 
-    // Delete presence AND log in parallel — both keepalive so browser sends them on unload
     fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json', {
       method: 'DELETE', keepalive: true
     });

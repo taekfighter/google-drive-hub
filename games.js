@@ -2770,13 +2770,13 @@ function buildGameClickHandler(file) {
     // 15s timeout — avoids hanging loader if CDN is slow
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 15000);
-    const gameUrl = `https://google-drive-hub.pages.dev/${encodeURIComponent(name)}`;
+    const gameUrl = `https://a5f5d311.google-drive-hub.pages.dev/${encodeURIComponent(name)}`;
     fetch(gameUrl, { signal: ctrl.signal })
       .then(r => { clearTimeout(tid); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(text => {
         hide();
-        const base = `https://google-drive-hub.pages.dev/`;
-        const proxy = `https://broad-truth-d488.liamkurylak.workers.dev`;
+        const base = `https://a5f5d311.google-drive-hub.pages.dev/`;
+        const proxy = `https://dawn-meadow-7e02.snalebob67.workers.dev`;
 
         // Rewrite all cdn.jsdelivr.net references to go through our Cloudflare Worker proxy
         text = text.replace(/https?:\/\/cdn\.jsdelivr\.net/g, proxy);

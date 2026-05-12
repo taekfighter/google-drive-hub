@@ -504,7 +504,6 @@ db.ref('config').get().then(function(snap) {
 ═══════════════════════════════════════════════════ */
 var currentUser       = null;
 var pollTimer         = null;   // interval for pending-check and kick-check
-var presenceTimer     = null;
 var loginTime         = null;
 var navigatingToHub   = false;
 var cachedData        = null;
@@ -743,63 +742,148 @@ function hideActionLoader() {
 }
 
 /* ═══════════════════════════════════════════════════
-   ACTIVITY LOG
+   PRESENCE & ONLINE STATUS SYSTEM
+   Simple, reliable presence tracking without log spam
 ═══════════════════════════════════════════════════ */
-var MAX_LOG = 200;
-function logActivity(username, event) {
-  if (!username) return Promise.resolve();
-  var entry = buildLogEntry(username, event);
-  return db.ref('activityLog').push(entry).then(function() {
-    // Prune log to MAX_LOG entries so Firebase never grows unboundedly
-    return db.ref('activityLog').once('value');
-  }).then(function(snap) {
-    var keys = [];
-    snap.forEach(function(child) { keys.push(child.key); });
-    if (keys.length > MAX_LOG) {
-      var updates = {};
-      keys.slice(0, keys.length - MAX_LOG).forEach(function(k) {
-        updates['activityLog/' + k] = null;
-      });
-      return db.ref('/').update(updates);
-    }
-  }).catch(function() {});
+var PRESENCE_INTERVAL = 15000;  // 15 seconds
+var PRESENCE_TIMEOUT = 30000;   // 30 seconds
+var presenceInterval = null;
+var currentPresenceUser = null;
+var currentPresencePage = null;
+
+function startPresenceTracking(username, page) {
+  if (!username || !page) return;
+  stopPresenceTracking();
+  currentPresenceUser = username;
+  currentPresencePage = page;
+  updatePresence();
+  presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
 }
 
-function logActivityAndPresence(username, event, page) {
-  if (!username) return Promise.resolve();
-  var entry = buildLogEntry(username, event);
-  var updates = {};
-  // push returns a new key — use set with timestamp key instead for atomic update
-  var logKey = db.ref('activityLog').push().key;
-  updates['activityLog/' + logKey] = entry;
-  updates['presence/' + safeKey(username)] = { 
-    username: username,  // Add username field
-    page: page, 
-    heartbeat: Date.now() 
+function updatePresence() {
+  if (!currentPresenceUser) return;
+  var presenceData = {
+    username: currentPresenceUser,
+    page: currentPresencePage,
+    heartbeat: Date.now()
   };
-  return db.ref('/').update(updates);
+  db.ref('presence/' + safeKey(currentPresenceUser)).set(presenceData).catch(function(err) {});
+}
+
+function stopPresenceTracking() {
+  if (presenceInterval) {
+    clearInterval(presenceInterval);
+    presenceInterval = null;
+  }
+  if (currentPresenceUser) {
+    var userKey = safeKey(currentPresenceUser);
+    db.ref('presence/' + userKey).remove().catch(function() {});
+  }
+  currentPresenceUser = null;
+  currentPresencePage = null;
+}
+
+// Auto-cleanup on visibility change
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden && presenceInterval) {
+    clearInterval(presenceInterval);
+    presenceInterval = null;
+  } else if (!document.hidden && currentPresenceUser) {
+    updatePresence();
+    presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
+  }
+});
+
+// Backward compatibility - keep old function names pointing to new system
+function startPresence(username, page) {
+  startPresenceTracking(username, page);
+}
+function stopPresence() {
+  stopPresenceTracking();
 }
 
 /* ═══════════════════════════════════════════════════
-   PRESENCE
+   ACTIVITY LOG SYSTEM
+   Clean, deduplicated activity logging
 ═══════════════════════════════════════════════════ */
-function setPresenceOnline(username, page) {
-  if (!username) return;
-  db.ref('presence/' + safeKey(username)).set({ 
-    username: username,  // Add username field for consistency
-    page: page, 
-    heartbeat: Date.now() 
-  });
+var MAX_LOG = 200;
+var logDebounce = {
+  lastLogTime: {},
+  minInterval: 2000  // Don't log same event type within 2 seconds
+};
+
+function logActivity(username, event, extras) {
+  if (!username || !event) return Promise.resolve();
+  
+  // Prevent duplicate logs of the same event within debounce window
+  var debounceKey = username + ':' + event;
+  var now = Date.now();
+  var lastLog = logDebounce.lastLogTime[debounceKey];
+  
+  if (lastLog && (now - lastLog) < logDebounce.minInterval) {
+    return Promise.resolve();
+  }
+  
+  logDebounce.lastLogTime[debounceKey] = now;
+  
+  // Build the log entry
+  var timestamp = new Date();
+  var entry = {
+    username: username,
+    event: event,
+    date: timestamp.toLocaleDateString(),
+    time: timestamp.toLocaleTimeString()
+  };
+  
+  // Add any extra fields (like duration, note, etc.)
+  if (extras && typeof extras === 'object') {
+    Object.assign(entry, extras);
+  }
+  
+  // Push to activity log
+  return db.ref('activityLog').push(entry)
+    .then(function() {
+      return pruneActivityLog();
+    })
+    .catch(function(err) {});
 }
 
-function startPresence(username, page) {
-  stopPresence();
-  setPresenceOnline(username, page);
-  presenceTimer = setInterval(function() { setPresenceOnline(username, page); }, 10000);  // Update every 10s for faster detection
+function pruneActivityLog() {
+  return db.ref('activityLog').once('value').then(function(snapshot) {
+    var entries = [];
+    snapshot.forEach(function(child) {
+      entries.push({ key: child.key, val: child.val() });
+    });
+    
+    if (entries.length > MAX_LOG) {
+      var toDelete = entries.length - MAX_LOG;
+      var updates = {};
+      
+      for (var i = 0; i < toDelete; i++) {
+        updates['activityLog/' + entries[i].key] = null;
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        return db.ref('/').update(updates);
+      }
+    }
+  }).catch(function(err) {});
 }
 
-function stopPresence() {
-  if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+function logLogin(username) {
+  return logActivity(username, 'login');
+}
+
+function logLogout(username, sessionDuration) {
+  var extras = {};
+  if (sessionDuration) {
+    extras.duration = formatDuration(sessionDuration);
+  }
+  return logActivity(username, 'logout', extras);
+}
+
+function logRegistration(username) {
+  return logActivity(username, 'registered');
 }
 
 /* ═══════════════════════════════════════════════════
@@ -844,11 +928,13 @@ function loginUser() {
     currentUser = existing.username;
 
     if (existing.status === 'approved') {
-      logActivityAndPresence(currentUser, 'login', 'login').then(function() {
+      currentUser = existing.username; // always use the canonical name from DB
+      logLogin(currentUser).then(function() {
+        startPresenceTracking(currentUser, 'login');
         hideActionLoader();
         handleApproved();
       }).catch(function() {
-        // Log write failed (network lag) — still let the user in
+        startPresenceTracking(currentUser, 'login');
         hideActionLoader();
         handleApproved();
       });
@@ -896,11 +982,10 @@ function registerUser() {
     }
     var now = new Date();
     var newUser = { username: user, password: pass, status: 'pending', time: now.toLocaleTimeString() };
-    var logKey = db.ref('activityLog').push().key;
-    var updates = {};
-    updates['users/' + safeKey(user)] = newUser;
-    updates['activityLog/' + logKey] = buildLogEntry(user, 'registered');
-    return db.ref('/').update(updates);
+    return db.ref('users/' + safeKey(user)).set(newUser)
+      .then(function() {
+        return logRegistration(user);
+      });
   }).then(function() {
     currentUser = user;
     hideActionLoader();
@@ -932,10 +1017,12 @@ function startPolling(username) {
       if (!u) return;
       if (u.status === 'approved') {
         stopPolling();
-        currentUser = currentUser || username;
-        logActivityAndPresence(currentUser, 'login', 'login').then(function() {
+        currentUser = u.username || currentUser || username; // canonical name from DB
+        logLogin(currentUser).then(function() {
+          startPresenceTracking(currentUser, 'login');
           handleApproved();
         }).catch(function() {
+          startPresenceTracking(currentUser, 'login');
           handleApproved();
         });
       } else if (u.status === 'denied') {
@@ -979,6 +1066,7 @@ function handleApproved() {
       });
       showActionLoader(loaderMsg);
       navigatingToHub = true;
+      stopPresenceTracking();  // Stop presence on login page before navigating
       logActivity(currentUser, eventName).then(function() {
         document.body.classList.add('fading-out');
         setTimeout(function() { window.location.href = dest; }, 420);
@@ -1062,23 +1150,30 @@ function submitGameFeedback() {
 ═══════════════════════════════════════════════════ */
 window.addEventListener('beforeunload', function() {
   stopPolling();
-  stopPresence();
+  stopPresenceTracking();
   stopInactivityWatch();
 
   var s = nowStamp();
 
-  // Admin closed tab
   if (!currentUser) return;
   if (navigatingToHub) return;
   if (!document.getElementById('s-approved').classList.contains('active')) return;
 
-  // Prevent duplicate logout when Chromebook lid closes then reopens
-  var logoutKey = 'logout_logged_' + safeKey(currentUser);
-  if (sessionStorage.getItem(logoutKey) === '1') return;
-  sessionStorage.setItem(logoutKey, '1');
+  // 30-second dedup via localStorage — prevents Chromebook lid cycle and tab throttle duplicates.
+  // sessionStorage was wiped on suspend which broke the old flag approach.
+  var logoutKey = 'login_logout_ts_' + safeKey(currentUser);
+  var now = Date.now();
+  var lastLogout = localStorage.getItem(logoutKey);
+  if (lastLogout && (now - parseInt(lastLogout, 10)) < 30000) {
+    fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(currentUser) + '.json',
+      { method: 'DELETE', keepalive: true }
+    );
+    return;
+  }
+  localStorage.setItem(logoutKey, now.toString());
 
-  var duration = loginTime ? formatDuration(Date.now() - loginTime) : null;
-  var logEntry = { username: currentUser, event: 'logged-out', date: s.date, time: s.time };
+  var duration = loginTime ? formatDuration(now - loginTime) : null;
+  var logEntry = { username: currentUser, event: 'logout', date: s.date, time: s.time };
   if (duration) logEntry.duration = duration;
   fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json',
     { method: 'POST', body: JSON.stringify(logEntry), keepalive: true }
@@ -1103,7 +1198,7 @@ window.addEventListener('beforeunload', function() {
       var now = new Date();
       fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
         method: 'POST',
-        body: JSON.stringify({ username: prevUser, event: 'hub-closed', date: now.toLocaleDateString(), time: now.toLocaleTimeString(), note: 'page refresh' }),
+        body: JSON.stringify({ username: prevUser, event: 'closed-hub', date: now.toLocaleDateString(), time: now.toLocaleTimeString(), note: 'page refresh' }),
         keepalive: true
       });
       fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + prevUser.toLowerCase().replace(/[.#$[\]]/g, '_') + '.json', {
@@ -1127,7 +1222,7 @@ db.ref('lockdown/active').on('value', function(snap) {
     var kickableScreens = ['s-login', 's-register', 's-approved', 's-pending'];
     if (active && kickableScreens.indexOf(active.id) !== -1) {
       stopPolling();
-      stopPresence();
+      stopPresenceTracking();  // NEW: Use new system
       if (currentUser && active.id === 's-approved') {
         var s = nowStamp();
         fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {

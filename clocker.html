@@ -257,7 +257,6 @@
   let loggedOut      = false;
   let _wipeInterval      = null;
   let _inactInterval     = null;
-  let _presInterval      = null;
   let _lockdownRef       = null;
   let _userRef           = null;
 
@@ -293,18 +292,35 @@
      LOG ACTIVITY
   ═══════════════════════════════════════════════════ */
   const MAX_LOG = 200;
+  const logDebounce = {
+    lastLogTime: {},
+    minInterval: 2000  // Don't log same event type within 2 seconds
+  };
+
   async function logActivity(user, event, extra) {
-    const now = new Date();
+    if (!user || !event) return;
+    
+    // Prevent duplicate logs of the same event within debounce window
+    const debounceKey = user + ':' + event;
+    const now = Date.now();
+    const lastLog = logDebounce.lastLogTime[debounceKey];
+    
+    if (lastLog && (now - lastLog) < logDebounce.minInterval) {
+      return; // Skip duplicate
+    }
+    
+    logDebounce.lastLogTime[debounceKey] = now;
+    
     const entry = {
       username: user,
       event,
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString(),
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString(),
       ...extra
     };
     try {
       await db.ref('activityLog').push(entry);
-      // Prune to MAX_LOG so Firebase never grows unboundedly
+      // Auto-prune to MAX_LOG
       const snap = await db.ref('activityLog').once('value');
       const keys = [];
       snap.forEach(child => keys.push(child.key));
@@ -317,22 +333,52 @@
   }
 
   /* ═══════════════════════════════════════════════════
-     PRESENCE
+     PRESENCE SYSTEM - Stable tracking to prevent flicker
   ═══════════════════════════════════════════════════ */
+  const PRESENCE_INTERVAL = 10000;  // 10 seconds heartbeat - admin timeout is 45s (4.5x buffer)
+  let presenceInterval = null;
+  let currentPresenceUser = null;
+
+  function startPresenceTracking(user) {
+    if (!user) return;
+    stopPresenceTracking();
+    currentPresenceUser = user;
+    updatePresence();
+    presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
+  }
+
   function updatePresence() {
-    if (loggedOut) return;
+    if (!currentPresenceUser || loggedOut) return;
     try {
-      db.ref('presence/' + safeKey(username)).set({
-        username: username,
+      db.ref('presence/' + safeKey(currentPresenceUser)).set({
+        username: currentPresenceUser,
         page: 'hub',
         heartbeat: Date.now()
       });
     } catch(e) {}
   }
 
-  function clearPresence() {
-    try { db.ref('presence/' + safeKey(username)).remove(); } catch(e) {}
+  function stopPresenceTracking() {
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+      presenceInterval = null;
+    }
+    if (currentPresenceUser) {
+      try { db.ref('presence/' + safeKey(currentPresenceUser)).remove(); } catch(e) {}
+    }
   }
+
+  // Keep presence active when tab is visible
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && presenceInterval) {
+      clearInterval(presenceInterval);
+      presenceInterval = null;
+      // Don't remove presence immediately - let it expire naturally
+    } else if (!document.hidden && currentPresenceUser && !loggedOut) {
+      updatePresence();
+      presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
+    }
+  });
 
   /* ═══════════════════════════════════════════════════
      FORCE LOGOUT (kick / wipe / inactivity)
@@ -346,7 +392,7 @@
     if (_userRef)     { try { _userRef.off();     } catch(e) {} _userRef     = null; }
     if (_wipeInterval)  { clearInterval(_wipeInterval);  _wipeInterval  = null; }
     if (_inactInterval) { clearInterval(_inactInterval); _inactInterval = null; }
-    if (_presInterval)  { clearInterval(_presInterval);  _presInterval  = null; }
+    stopPresenceTracking();  // NEW: Use new system
 
     if (isKicked) sessionStorage.setItem('clocker_kicked', '1');
 
@@ -355,7 +401,6 @@
     if (lt) extra.duration = formatDuration(Date.now() - parseInt(lt, 10));
 
     try { await logActivity(username, reason, extra); } catch(e) {}
-    try { await clearPresence(); } catch(e) {}
 
     sessionStorage.removeItem('clocker_user');
     sessionStorage.removeItem('clocker_login_time');
@@ -463,29 +508,47 @@
   /* ═══════════════════════════════════════════════════
      INIT
   ═══════════════════════════════════════════════════ */
-  updatePresence();
-  _presInterval = setInterval(updatePresence, 5000); // 5s heartbeat for fast admin updates
+  // Start presence tracking
+  startPresenceTracking(username);
+  // NOTE: hub-opened is already logged by login.html when the button is clicked.
+  // Do NOT log it here — that caused the duplicate "Opened Game Hub" entries.
+
+  // Track whether the page is being unloaded due to a real navigation/close
+  // vs Chrome tab discard/energy-saver mode (which also fires beforeunload).
+  // We detect real navigations by watching for any user-initiated link/form action.
+  let _realUnload = false;
+  window.addEventListener('pagehide', (e) => {
+    // persisted=true means the page is going into bfcache (tab suspend), NOT a real close
+    if (!e.persisted) _realUnload = true;
+  });
 
   window.addEventListener('beforeunload', () => {
     if (loggedOut) return; // already handled (kick/inactivity/wipe)
 
-    // Prevent duplicate logout when Chromebook lid closes then reopens
-    const logoutKey = 'hub_logout_logged_' + safeKey(username);
-    if (sessionStorage.getItem(logoutKey) === '1') return;
-    sessionStorage.setItem(logoutKey, '1');
+    // If pagehide hasn't fired yet, we can't tell — use the timestamp dedup as safety net.
+    // 30-second window prevents: Chromebook lid close/reopen, tab throttle/resume, bfcache restore.
+    const logoutKey = 'hub_logout_ts_' + safeKey(username);
+    const lastLogout = localStorage.getItem(logoutKey);
+    const now = Date.now();
+    if (lastLogout && (now - parseInt(lastLogout, 10)) < 30000) {
+      // Still delete presence so admin panel clears
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json', {
+        method: 'DELETE', keepalive: true
+      });
+      return;
+    }
+    localStorage.setItem(logoutKey, now.toString());
 
-    // Use keepalive fetch only — SDK calls get killed before completing on tab close
     const lt = sessionStorage.getItem('clocker_login_time');
-    const now = new Date();
+    const nowDate = new Date();
     const entry = {
       username: username,
-      event: 'hub-closed',
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString()
+      event: 'logged-off',
+      date: nowDate.toLocaleDateString(),
+      time: nowDate.toLocaleTimeString()
     };
-    if (lt) entry.duration = formatDuration(Date.now() - parseInt(lt, 10));
+    if (lt) entry.duration = formatDuration(now - parseInt(lt, 10));
 
-    // Delete presence AND log in parallel — both keepalive so browser sends them on unload
     fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json', {
       method: 'DELETE', keepalive: true
     });
