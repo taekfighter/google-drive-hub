@@ -339,6 +339,24 @@
 })();
 </script>
 <script src="spiderweb.js" defer></script>
+
+<!-- Fetch game source config BEFORE games.js so window.GAME_BASE_URL is set in time -->
+<script>
+(function(){
+  var HUB_URL = 'https://google-drive-hub.pages.dev';
+  var CDN_URL = 'https://cdn.jsdelivr.net/gh/taekfighter/ugs-singlefile/UGS-Files';
+  window.GAME_BASE_URL = HUB_URL;
+  try {
+    var app = firebase.apps.length ? firebase.app() : firebase.initializeApp({
+      apiKey:"AIzaSyBJ4lMm2Nf9u6UeJLHH-Ap9z7lX9wBFEuc",
+      databaseURL:"https://drive-portal-d7eb1-default-rtdb.firebaseio.com"
+    });
+    firebase.database().ref('config/gameSourceHub12').get().then(function(snap){
+      if(snap.exists() && snap.val() === true) window.GAME_BASE_URL = CDN_URL;
+    }).catch(function(){});
+  } catch(e){}
+})();
+</script>
 <script src="games.js" defer></script>
 
 <script>

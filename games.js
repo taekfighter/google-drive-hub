@@ -130,8 +130,6 @@ let files = [
   "clGettothetopalthoughthereisnotop",
   "clGoldenSunTheLostAge",
   "clHaroldsbadday",
-  "clHelios-Offline",
-  "clHelios-Offline (1)",
   "clHiNoHomo",
   "clHighSpeed",
   "clHoennsLastWish",
@@ -177,7 +175,6 @@ let files = [
   "clPokémon Trade&_Stache (V11)",
   "clPokémonstunningsteel",
   "clQuantumClicker",
-  "clSINGLEFILE",
   "clSM64Land",
   "clSSF2Arcade",
   "clSSF2TArcade",
@@ -576,8 +573,6 @@ let files = [
   "clcodblackopp",
   "clcoddefiance",
   "clcodenamegordon",
-  "clcodeorg",
-  "clcodeorgbutoffline",
   "clcodercraft",
   "clcodmodernwarfare",
   "clcodworldatwar",
@@ -2059,8 +2054,6 @@ let files = [
   "clsandboxcity",
   "clsandboxels",
   "clsandsofthecoliseum",
-  "clsandstone",
-  "clsandstone(1)",
   "clsandtris",
   "clsantarun",
   "clsanty",
@@ -2770,12 +2763,13 @@ function buildGameClickHandler(file) {
     // 15s timeout — avoids hanging loader if CDN is slow
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 15000);
-    const gameUrl = `https://a5f5d311.google-drive-hub.pages.dev/${encodeURIComponent(name)}`;
+    const _srcBase = (window.GAME_BASE_URL || 'https://google-drive-hub.pages.dev').replace(/\/$/, '');
+    const gameUrl = `${_srcBase}/${encodeURIComponent(name)}`;
     fetch(gameUrl, { signal: ctrl.signal })
       .then(r => { clearTimeout(tid); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(text => {
         hide();
-        const base = `https://a5f5d311.google-drive-hub.pages.dev/`;
+        const base = _srcBase;
         const proxy = `https://dawn-meadow-7e02.snalebob67.workers.dev`;
 
         // Rewrite all cdn.jsdelivr.net references to go through our Cloudflare Worker proxy
