@@ -374,7 +374,7 @@
     appId: "1:602318258720:web:e81d1c6ec4c06bd5da3245"
   };
 
-  firebase.initializeApp(firebaseConfig);
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
 
@@ -499,6 +499,9 @@
   /* ═══════════════════════════════════════════════════
      PRESENCE
   ═══════════════════════════════════════════════════ */
+  // onDisconnect: Firebase server removes presence if tab closes/crashes
+  db.ref('presence/' + safeKey(username)).onDisconnect().remove();
+
   function updatePresence() {
     if (loggedOut) return;
     try {
@@ -513,6 +516,16 @@
   function clearPresence() {
     try { db.ref('presence/' + safeKey(username)).remove(); } catch(e) {}
   }
+
+  // Keep presence alive when tab becomes visible again
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (_presInterval) { clearInterval(_presInterval); _presInterval = null; }
+    } else if (!loggedOut) {
+      updatePresence();
+      if (!_presInterval) _presInterval = setInterval(updatePresence, 10000);
+    }
+  });
 
   /* ═══════════════════════════════════════════════════
      FORCE LOGOUT (kick / wipe / inactivity)
@@ -682,7 +695,7 @@
       method: 'DELETE', keepalive: true
     });
     fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
-      method: 'POST', body: JSON.stringify(entry), keepalive: true
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry), keepalive: true
     });
   });
 

@@ -213,7 +213,7 @@
     appId: "1:602318258720:web:e81d1c6ec4c06bd5da3245"
   };
 
-  firebase.initializeApp(firebaseConfig);
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
 
@@ -362,6 +362,9 @@
     if (!user) return;
     stopPresenceTracking();
     currentPresenceUser = user;
+    // onDisconnect: Firebase server removes presence automatically if connection drops (tab close, crash, etc.)
+    const presRef = db.ref('presence/' + safeKey(user));
+    presRef.onDisconnect().remove();
     updatePresence();
     presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
   }
@@ -572,7 +575,7 @@
       method: 'DELETE', keepalive: true
     });
     fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
-      method: 'POST', body: JSON.stringify(entry), keepalive: true
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry), keepalive: true
     });
   });
 

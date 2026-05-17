@@ -2769,7 +2769,7 @@ function buildGameClickHandler(file) {
       .then(r => { clearTimeout(tid); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(text => {
         hide();
-        const base = _srcBase;
+        const base = _srcBase + '/';
         const proxy = `https://dawn-meadow-7e02.snalebob67.workers.dev`;
 
         // Rewrite all cdn.jsdelivr.net references to go through our Cloudflare Worker proxy

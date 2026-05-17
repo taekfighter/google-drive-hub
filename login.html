@@ -9,13 +9,6 @@
   gtag("js", new Date());
   gtag("config", "G-CBRC0YZ54S");
 </script>
-
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag("js", new Date());
-  gtag("config", "G-CBRC0YZ54S");
-</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Home - Google Drive</title>
@@ -560,7 +553,7 @@ function startInactivityWatch() {
       var entry = { username: currentUser, event: 'inactivity-logout', date: s.date, time: s.time };
       if (duration) entry.duration = duration;
       fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json',
-        { method: 'POST', body: JSON.stringify(entry), keepalive: true });
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry), keepalive: true });
       fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(currentUser) + '.json',
         { method: 'DELETE', keepalive: true });
       stopPolling();
@@ -756,6 +749,8 @@ function startPresenceTracking(username, page) {
   stopPresenceTracking();
   currentPresenceUser = username;
   currentPresencePage = page;
+  // onDisconnect: Firebase server removes presence if browser closes/crashes without running JS
+  db.ref('presence/' + safeKey(username)).onDisconnect().remove();
   updatePresence();
   presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
 }
@@ -1176,7 +1171,7 @@ window.addEventListener('beforeunload', function() {
   var logEntry = { username: currentUser, event: 'logout', date: s.date, time: s.time };
   if (duration) logEntry.duration = duration;
   fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json',
-    { method: 'POST', body: JSON.stringify(logEntry), keepalive: true }
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logEntry), keepalive: true }
   );
   fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(currentUser) + '.json',
     { method: 'DELETE', keepalive: true }
@@ -1198,6 +1193,7 @@ window.addEventListener('beforeunload', function() {
       var now = new Date();
       fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: prevUser, event: 'closed-hub', date: now.toLocaleDateString(), time: now.toLocaleTimeString(), note: 'page refresh' }),
         keepalive: true
       });
@@ -1227,6 +1223,7 @@ db.ref('lockdown/active').on('value', function(snap) {
         var s = nowStamp();
         fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: currentUser, event: 'lockdown-logout', date: s.date, time: s.time }),
           keepalive: true
         });
