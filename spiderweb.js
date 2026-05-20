@@ -49,7 +49,10 @@
         nodes.forEach((n, i) => {
             const gx = Math.min((n.x / CELL) | 0, gridCols - 1);
             const gy = Math.min((n.y / CELL) | 0, gridRows - 1);
-            grid[gy * gridCols + gx].push(i);
+            const idx = gy * gridCols + gx;
+            if (grid[idx]) {  // Safety check
+                grid[idx].push(i);
+            }
         });
     }
 
@@ -60,7 +63,10 @@
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
             const nx = gx + dx, ny = gy + dy;
             if (nx < 0 || ny < 0 || nx >= gridCols || ny >= gridRows) continue;
-            for (const i of grid[ny * gridCols + nx]) out.push(i);
+            const idx = ny * gridCols + nx;
+            if (grid[idx]) {  // Safety check
+                for (const i of grid[idx]) out.push(i);
+            }
         }
         return out;
     }

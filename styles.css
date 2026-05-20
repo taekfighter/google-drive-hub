@@ -612,88 +612,29 @@ h1 {
 }
 
 /* =====================================================
-   THEME SWITCHER — Refined
+   THEME SWITCHER — hidden (moved into gear menu)
 ===================================================== */
 #theme-switcher {
-    position: fixed;
-    bottom: 28px;
-    left: 84px;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    gap: 0;
-    background: rgba(8, 15, 30, 0.95);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 50px;
-    padding: 6px 10px;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow:
-        0 8px 32px rgba(0,0,0,0.5),
-        inset 0 1px 0 rgba(255,255,255,0.06);
-    max-width: calc(100vw - 104px);
-    overflow: visible;              /* allow dot ring to show without clipping */
-    transition: bottom 0.2s ease;
+    display: none !important;
 }
 
-/* Dots row — slides open/closed via JS toggling .open class */
+/* Dots row — used inside gear menu */
 #theme-switcher-wrap {
     display: flex;
-    gap: 5px;
+    gap: 6px;
     align-items: center;
-    overflow: hidden;
-    max-width: 0;
-    opacity: 0;
-    margin-left: 0;
-    transition:
-        max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity   0.25s ease,
-        margin-left 0.35s ease;
-}
-
-#theme-switcher-wrap.open {
-    max-width: 260px;
-    opacity: 1;
-    margin-left: 8px;
+    flex-wrap: wrap;
 }
 
 .theme-btn {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     border: 2px solid rgba(255,255,255,0.12);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
     position: relative;
     flex-shrink: 0;
-}
-
-.theme-btn::after {
-    content: attr(title);
-    position: fixed;
-    bottom: 70px;
-    left: auto;
-    transform: translateX(-50%);
-    background: rgba(10, 18, 35, 0.97);
-    color: #fff;
-    font-size: 0.7rem;
-    font-family: 'Outfit', sans-serif;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: capitalize;
-    white-space: nowrap;
-    padding: 4px 9px;
-    border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.12);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    z-index: 99999;
-}
-
-.theme-btn:hover::after {
-    opacity: 1;
 }
 
 .theme-btn:hover {
@@ -704,7 +645,7 @@ h1 {
 
 .theme-btn.active {
     border-color: white;
-    transform: scale(1.4) translateY(-2px);
+    transform: scale(1.2);
     box-shadow: 0 0 14px rgba(255,255,255,0.5);
 }
 
@@ -720,6 +661,224 @@ h1 {
 @keyframes theme-ring {
     0%, 100% { opacity: 0.4; transform: scale(1); }
     50%       { opacity: 0.9; transform: scale(1.08); }
+}
+
+/* =====================================================
+   GEAR SETTINGS BUTTON & MENU
+===================================================== */
+#settings-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10000;
+    width: 42px;
+    height: 42px;
+    background: rgba(8, 15, 30, 0.92);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    transition: all 0.2s ease;
+    font-size: 18px;
+    color: rgba(var(--accent-rgb), 0.8);
+}
+
+#settings-btn:hover {
+    border-color: rgba(var(--accent-rgb), 0.6);
+    color: var(--accent-blue);
+    box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2), 0 4px 20px rgba(var(--accent-rgb), 0.15);
+}
+
+#settings-btn svg {
+    transition: transform 0.3s ease;
+}
+
+#settings-btn.open svg {
+    transform: rotate(60deg);
+}
+
+#settings-panel {
+    position: fixed;
+    top: 66px;
+    right: 16px;
+    z-index: 9999;
+    width: 260px;
+    background: rgba(8, 15, 30, 0.97);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
+    border-radius: 16px;
+    padding: 16px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#settings-panel.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: all;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.08);
+    font-family: 'Outfit', sans-serif;
+}
+
+.settings-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.settings-row:first-child {
+    padding-top: 0;
+}
+
+.settings-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(var(--accent-rgb), 0.5);
+    margin-bottom: 6px;
+    font-family: 'Outfit', sans-serif;
+}
+
+.settings-value {
+    font-size: 14px;
+    color: rgba(255,255,255,0.9);
+    font-weight: 500;
+}
+
+.settings-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+}
+
+.settings-section {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.08);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.settings-section:first-child {
+    padding-top: 0;
+}
+
+/* =====================================================
+   SEARCH DROPDOWN (Google-style)
+===================================================== */
+#search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(700px, 90vw);
+    background: rgba(8, 15, 30, 0.98);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-radius: 16px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    z-index: 5000;
+    max-height: 420px;
+    overflow-y: auto;
+    display: none;
+}
+
+#search-dropdown.visible {
+    display: block;
+}
+
+.search-drop-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.06);
+    font-family: 'Outfit', sans-serif;
+}
+
+.search-drop-item:last-child {
+    border-bottom: none;
+}
+
+.search-drop-item:hover, .search-drop-item.highlighted {
+    background: rgba(var(--accent-rgb), 0.1);
+}
+
+.search-drop-item:first-child {
+    border-radius: 16px 16px 0 0;
+}
+
+.search-drop-item:last-child {
+    border-radius: 0 0 16px 16px;
+}
+
+.search-drop-item:first-child:last-child {
+    border-radius: 16px;
+}
+
+.search-drop-thumb {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: rgba(var(--accent-rgb), 0.1);
+    border: 1px solid rgba(var(--accent-rgb), 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: rgba(var(--accent-rgb), 0.7);
+    flex-shrink: 0;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.search-drop-name {
+    font-size: 14px;
+    color: rgba(255,255,255,0.9);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-drop-name mark {
+    background: none;
+    color: var(--accent-blue);
+    font-weight: 600;
+}
+
+.search-drop-count {
+    font-size: 11px;
+    color: rgba(var(--accent-rgb), 0.4);
+    padding: 8px 16px;
+    border-top: 1px solid rgba(var(--accent-rgb), 0.08);
+    text-align: center;
+    font-family: 'Outfit', sans-serif;
+}
+
+.search-area {
+    position: relative;
 }
 
 /* =====================================================
@@ -851,24 +1010,11 @@ h1 {
         grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)) !important;
     }
 
-    /* Theme switcher — centred, full-width pill, dots wrap instead of clip */
-    #theme-switcher {
-        left: 50%;
-        transform: translateX(-50%);
-        bottom: 14px;
-        max-width: calc(100vw - 24px);
-        padding: 5px 10px;
-        overflow: hidden;
-    }
-    #theme-switcher-wrap.open {
-        max-width: 100%;        /* let dots use the full available width */
-        flex-wrap: wrap;        /* wrap onto a second row if needed */
-        gap: 8px;
-        margin-left: 6px;
-    }
-    .theme-btn { width: 20px; height: 20px; }   /* slightly bigger tap targets on mobile */
+    /* Gear button position on mobile */
+    #settings-btn { top: 10px; right: 10px; width: 38px; height: 38px; }
+    #settings-panel { top: 56px; right: 10px; width: calc(100vw - 20px); }
 
-    #back-to-top { bottom: 68px; right: 14px; } /* move above theme switcher so they don't overlap */
+    #back-to-top { bottom: 20px; right: 14px; }
     .letter-header { font-size: 1.2rem; margin: 22px 0 10px; }
 
     /* Quick-tags: allow wrapping on mobile */

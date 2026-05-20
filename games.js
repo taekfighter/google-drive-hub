@@ -3005,7 +3005,7 @@ document.addEventListener('keydown', (e) => {
     }, 1000);
 })();
 // ==============================
-// SEARCH + UI LOGIC (from searchbut.js)
+// SEARCH + UI LOGIC
 // ==============================
 document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('searchInput'); 
@@ -3013,31 +3013,81 @@ document.addEventListener('DOMContentLoaded', () => {
     const noResults   = document.getElementById('no-results');
     const noTerm      = document.getElementById('no-results-term');
     const searchWrap  = document.getElementById('search-wrap');
+    const searchArea  = document.querySelector('.search-area');
 
     if (!searchInput) return;
+
+    // ── Create Google-style dropdown ──
+    const dropdown = document.createElement('div');
+    dropdown.id = 'search-dropdown';
+    if (searchArea) searchArea.appendChild(dropdown);
 
     // Focus styling
     searchInput.addEventListener('focus', () => {
         if (searchWrap) searchWrap.style.borderColor = 'rgba(var(--accent-rgb), 0.8)';
+        const q = searchInput.value.trim();
+        if (q.length >= 1) showDropdown(q.toLowerCase());
     });
 
     searchInput.addEventListener('blur', () => {
         if (searchWrap) searchWrap.style.borderColor = 'rgba(var(--accent-rgb), 0.3)';
+        setTimeout(() => hideDropdown(), 180);
     });
 
-    // Input handling — debounced so filterGames doesn't fire on every single keypress
+    // ── Keyboard navigation in dropdown ──
+    let highlightIdx = -1;
+
+    searchInput.addEventListener('keydown', e => {
+        const items = dropdown.querySelectorAll('.search-drop-item');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightIdx = Math.min(highlightIdx + 1, items.length - 1);
+            updateHighlight(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightIdx = Math.max(highlightIdx - 1, -1);
+            updateHighlight(items);
+        } else if (e.key === 'Enter') {
+            if (highlightIdx >= 0 && items[highlightIdx]) {
+                items[highlightIdx].click();
+            } else if (items.length === 1) {
+                items[0].click();
+            }
+        } else if (e.key === 'Escape') {
+            hideDropdown();
+        }
+    });
+
+    function updateHighlight(items) {
+        items.forEach((item, i) => item.classList.toggle('highlighted', i === highlightIdx));
+        if (highlightIdx >= 0 && items[highlightIdx]) {
+            items[highlightIdx].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    // Input handling — debounced
     let _searchDebounce = null;
     searchInput.addEventListener('input', () => {
         const q = searchInput.value.trim().toLowerCase();
         clearBtn.style.display = q ? 'block' : 'none';
+        highlightIdx = -1;
         clearTimeout(_searchDebounce);
-        _searchDebounce = setTimeout(() => filterGames(q), 120);
+        if (!q) {
+            hideDropdown();
+            filterGames('');
+            return;
+        }
+        _searchDebounce = setTimeout(() => {
+            showDropdown(q);
+            filterGames(q);
+        }, 80);
     });
 
     clearBtn.addEventListener('click', () => {
         searchInput.value = '';
         clearBtn.style.display = 'none';
         searchInput.focus();
+        hideDropdown();
         filterGames('');
     });
 
@@ -3049,6 +3099,92 @@ document.addEventListener('DOMContentLoaded', () => {
             searchInput.select();
         }
     });
+
+    function _thumbHashLocal(name) {
+        let h = 0;
+        for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+        return h;
+    }
+
+    function showDropdown(q) {
+        if (!q) { hideDropdown(); return; }
+        const allCards = document.querySelectorAll('.game-card');
+        const matches = [];
+        for (const card of allCards) {
+            const name = card.dataset.name || '';
+            const display = card.querySelector('.game-card-name')?.textContent || name;
+            if (name.includes(q)) {
+                matches.push({ display, file: card.dataset.file, clickHandler: card.onclick, card });
+                if (matches.length >= 20) break;
+            }
+        }
+        if (!matches.length) { hideDropdown(); return; }
+
+        dropdown.innerHTML = '';
+        matches.forEach(({ display, file, card }, idx) => {
+            const item = document.createElement('div');
+            item.className = 'search-drop-item';
+
+            const thumb = document.createElement('div');
+            thumb.className = 'search-drop-thumb';
+            const letter = (display.replace(/^cl/i, '')[0] || '?').toUpperCase();
+            const hash = _thumbHashLocal(display);
+            const bgOp = (0.22 + (hash % 9) * 0.018).toFixed(3);
+            thumb.style.background = `rgba(var(--accent-rgb),${bgOp})`;
+            thumb.textContent = letter;
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'search-drop-name';
+            // Highlight matching portion
+            const lowerDisplay = display.toLowerCase();
+            const qi = lowerDisplay.indexOf(q);
+            if (qi >= 0) {
+                nameEl.innerHTML =
+                    escHtml(display.slice(0, qi)) +
+                    '<mark>' + escHtml(display.slice(qi, qi + q.length)) + '</mark>' +
+                    escHtml(display.slice(qi + q.length));
+            } else {
+                nameEl.textContent = display;
+            }
+
+            item.appendChild(thumb);
+            item.appendChild(nameEl);
+
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault(); // prevent blur from hiding before click
+                hideDropdown();
+                searchInput.value = '';
+                clearBtn.style.display = 'none';
+                filterGames('');
+                // Click the actual card
+                if (card && typeof card.onclick === 'function') card.onclick();
+                else if (card) card.click();
+            });
+
+            dropdown.appendChild(item);
+        });
+
+        // Count line
+        if (matches.length >= 20) {
+            const countEl = document.createElement('div');
+            countEl.className = 'search-drop-count';
+            const total = document.querySelectorAll('.game-card').length;
+            const realTotal = Array.from(document.querySelectorAll('.game-card')).filter(c => (c.dataset.name||'').includes(q)).length;
+            countEl.textContent = `Showing 20 of ${realTotal} matches — keep typing to narrow down`;
+            dropdown.appendChild(countEl);
+        }
+
+        dropdown.classList.add('visible');
+    }
+
+    function hideDropdown() {
+        dropdown.classList.remove('visible');
+        highlightIdx = -1;
+    }
+
+    function escHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
 
     function filterGames(q) {
         const sections = document.querySelectorAll('.letter-section');
@@ -3104,7 +3240,81 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 800);
         });
     }
+
+    // ── Build Gear Settings Panel ──
+    buildGearPanel();
 });
+
+function buildGearPanel() {
+    // Create gear button
+    const gearBtn = document.createElement('button');
+    gearBtn.id = 'settings-btn';
+    gearBtn.title = 'Settings';
+    gearBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>`;
+    document.body.appendChild(gearBtn);
+
+    // Create settings panel
+    const panel = document.createElement('div');
+    panel.id = 'settings-panel';
+
+    // Get username
+    const username = sessionStorage.getItem('clocker_user') || 'Personal';
+    const gameSource = (window.GAME_BASE_URL || '').includes('cdn.jsdelivr') ? '📦 CDN' : '🌐 Hub';
+
+    panel.innerHTML = `
+        <div class="settings-section">
+            <div class="settings-label">Signed in as</div>
+            <div class="settings-value" style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">👤</span>
+                <span id="gear-username">${username}</span>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-label">Game Source</div>
+            <div class="settings-value" id="gear-source">${gameSource}</div>
+        </div>
+        <div class="settings-section" style="padding-bottom:4px;">
+            <div class="settings-label" style="margin-bottom:10px;">Theme</div>
+            <div id="theme-switcher-wrap"></div>
+        </div>
+    `;
+    document.body.appendChild(panel);
+
+    // Build theme buttons inside panel
+    if (typeof buildThemeButtons === 'function') {
+        buildThemeButtons(panel.querySelector('#theme-switcher-wrap'));
+    }
+
+    // Update source after Firebase resolves (poll for a short time)
+    let sourceCheckCount = 0;
+    const sourceInterval = setInterval(() => {
+        sourceCheckCount++;
+        const src = (window.GAME_BASE_URL || '').includes('cdn.jsdelivr') ? '📦 CDN' : '🌐 Hub';
+        const el = document.getElementById('gear-source');
+        if (el) el.textContent = src;
+        if (sourceCheckCount >= 10) clearInterval(sourceInterval);
+    }, 600);
+
+    // Toggle panel
+    let open = false;
+    gearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        open = !open;
+        gearBtn.classList.toggle('open', open);
+        panel.classList.toggle('open', open);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!panel.contains(e.target) && e.target !== gearBtn) {
+            open = false;
+            gearBtn.classList.remove('open');
+            panel.classList.remove('open');
+        }
+    });
+}
 
 
 /* =====================================================
@@ -3175,7 +3385,9 @@ setInterval(updateClock,1000);
         #back-to-top:hover { border-color: rgba(var(--accent-rgb),.65) !important; box-shadow: 0 8px 24px rgba(0,0,0,.5),0 0 16px rgba(var(--accent-rgb),.2) !important; }
         #back-to-top::before { background: radial-gradient(circle at center bottom,rgba(var(--accent-rgb),.15) 0%,transparent 70%) !important; }
         #progress-bar { background: linear-gradient(90deg,var(--accent-blue),rgba(var(--accent-rgb),.5)) !important; box-shadow: 0 0 8px rgba(var(--accent-rgb),.6) !important; }
-        #theme-switcher { border-color: rgba(var(--accent-rgb),.2) !important; }
+        #settings-btn { border-color: rgba(var(--accent-rgb),.25) !important; color: rgba(var(--accent-rgb),.8) !important; }
+        #settings-panel { border-color: rgba(var(--accent-rgb),.2) !important; }
+        #search-dropdown { border-color: rgba(var(--accent-rgb),.25) !important; }
         .search-wrap { border-color: rgba(var(--accent-rgb),.25) !important; }
         .search-wrap:focus-within { border-color: rgba(var(--accent-rgb),.6) !important; box-shadow: 0 0 0 3px rgba(var(--accent-rgb),.08) !important; }
         .quick-tags code { background: rgba(var(--accent-rgb),.1) !important; color: rgba(var(--accent-rgb),.85) !important; border-color: rgba(var(--accent-rgb),.15) !important; }
@@ -3187,6 +3399,9 @@ setInterval(updateClock,1000);
         .skeleton-thumb,.skeleton-line { background: rgba(var(--accent-rgb),.09) !important; }
         .game-card-skeleton { border-color: rgba(var(--accent-rgb),.07) !important; }
         .game-card-skeleton::after { background: linear-gradient(90deg,transparent,rgba(var(--accent-rgb),.07),transparent) !important; }
+        .search-drop-thumb { background: rgba(var(--accent-rgb),.1) !important; border-color: rgba(var(--accent-rgb),.15) !important; color: rgba(var(--accent-rgb),.7) !important; }
+        .search-drop-item:hover,.search-drop-item.highlighted { background: rgba(var(--accent-rgb),.1) !important; }
+        .search-drop-name mark { color: var(--accent-blue) !important; }
     `;
     document.head.appendChild(staticStyle);
 
@@ -3210,27 +3425,15 @@ setInterval(updateClock,1000);
         // No regen needed — all thumbs use rgba(var(--accent-rgb),...) and update instantly
     }
 
-    /* ── Build theme buttons dynamically from palette ── */
-    const switcher = document.getElementById('theme-switcher');
-    if (switcher) {
-        /* colour swatches for each theme button */
+    /* ── Build theme buttons into the gear settings panel ── */
+    function buildThemeButtons(container) {
+        if (!container) return;
+        container.innerHTML = '';
         const swatchColors = {
             blue:'#38bdf8', cyan:'#06d6c7', green:'#4ade80', lime:'#a3e635',
             purple:'#c084fc', pink:'#f472b6', red:'#f87171',
             orange:'#fb923c', gold:'#fbbf24', grey:'#94a3b8',
         };
-
-        const toggle = document.createElement('button');
-        toggle.textContent = '🎨';
-        toggle.title = 'Themes';
-        toggle.style.cssText = 'background:none;border:none;cursor:pointer;font-size:17px;padding:0 2px;line-height:1;flex-shrink:0;transition:transform 0.2s ease;';
-        toggle.addEventListener('mouseenter', () => toggle.style.transform = 'scale(1.2) rotate(-10deg)');
-        toggle.addEventListener('mouseleave', () => toggle.style.transform = 'scale(1)');
-
-        const wrap = document.createElement('div');
-        wrap.id = 'theme-switcher-wrap';
-        wrap.className = 'open'; // starts open
-
         Object.keys(themes).forEach(name => {
             const btn = document.createElement('button');
             btn.className = 'theme-btn';
@@ -3238,33 +3441,47 @@ setInterval(updateClock,1000);
             btn.title = name.charAt(0).toUpperCase() + name.slice(1);
             btn.style.background = swatchColors[name] || '#888';
             btn.addEventListener('click', () => applyTheme(name));
-            wrap.appendChild(btn);
-        });
-
-        switcher.innerHTML = '';
-        switcher.appendChild(toggle);
-        switcher.appendChild(wrap);
-
-        let open = true;
-        toggle.addEventListener('click', () => {
-            open = !open;
-            wrap.classList.toggle('open', open);
+            container.appendChild(btn);
         });
     }
+
+    /* ── Expose globally so buildGearPanel() can call it ── */
+    window.buildThemeButtons = buildThemeButtons;
+
+    /* ── Old #theme-switcher fallback (hidden but keep for compat) ── */
+    const switcher = document.getElementById('theme-switcher');
+    if (switcher) { switcher.innerHTML = ''; }
 
     applyTheme(localStorage.getItem('siteTheme') || 'blue');
 })();
 
 /* =====================================================
-   QUICK TAG CLICK SEARCH
+   QUICK TAG CLICK — launches first matching game directly
 ===================================================== */
 document.querySelectorAll('.quick-tags code').forEach(tag => {
     tag.addEventListener('click', () => {
-        const input = document.getElementById('searchInput');
-        if (!input) return;
-        input.value = tag.textContent;
-        input.dispatchEvent(new Event('input'));
-        input.focus();
+        const query = tag.textContent.trim().toLowerCase().replace(/\s+/g, '');
+        // Find the first game card whose name matches
+        const allCards = document.querySelectorAll('.game-card');
+        let bestCard = null;
+        for (const card of allCards) {
+            const name = (card.dataset.name || '').replace(/\s+/g, '');
+            if (name.includes(query)) {
+                bestCard = card;
+                break;
+            }
+        }
+        if (bestCard) {
+            bestCard.click();
+        } else {
+            // Fallback: put in search bar if game hasn't rendered yet
+            const input = document.getElementById('searchInput');
+            if (input) {
+                input.value = tag.textContent;
+                input.dispatchEvent(new Event('input'));
+                input.focus();
+            }
+        }
     });
 });
 /* =====================================================
