@@ -2960,6 +2960,7 @@ function toggleFav(file) {
   else favs.push(file);
   saveFavs(favs);
   renderFavsSection();
+  updateSidebarFavBtn();
   // update any star button for this file across the page
   document.querySelectorAll(`.star-btn[data-file="${CSS.escape(file)}"]`).forEach(b => {
     b.textContent = isFav(file) ? '★' : '☆';
@@ -3175,8 +3176,46 @@ function generateAllSections() {
   generateSidebar(allChars, filesByChar);
 }
 
+function updateSidebarFavBtn() {
+  const existing = document.getElementById('sidebar-fav-btn');
+  if (existing) {
+    const count = getFavs().length;
+    existing.title = count ? `Favorites (${count})` : 'No favorites yet';
+    existing.style.opacity = count ? '1' : '0.35';
+    existing.style.borderColor = count ? 'rgba(250,204,21,0.5)' : '';
+    existing.style.color = count ? '#facc15' : '';
+  }
+}
+
 function generateSidebar(allChars, filesByChar) {
   const sidebar = document.getElementById('sidebar');
+
+  // ★ Favorites button — always first
+  const favBtn = document.createElement('button');
+  favBtn.className = 'sidebar-btn';
+  favBtn.id = 'sidebar-fav-btn';
+  favBtn.textContent = '★';
+  const count = getFavs().length;
+  favBtn.title = count ? `Favorites (${count})` : 'No favorites yet';
+  favBtn.style.opacity = count ? '1' : '0.35';
+  if (count) {
+    favBtn.style.borderColor = 'rgba(250,204,21,0.5)';
+    favBtn.style.color = '#facc15';
+  }
+  favBtn.onclick = () => {
+    const section = document.getElementById('section-FAVS');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else {
+      document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+  sidebar.appendChild(favBtn);
+
+  // Separator
+  const sep = document.createElement('div');
+  sep.style.cssText = 'width:32px;height:1px;background:rgba(56,189,248,0.15);margin:4px 0;flex-shrink:0;';
+  sidebar.appendChild(sep);
+
   allChars.forEach(char => {
     if (filesByChar[char].length === 0) return;
     const btn = document.createElement('button');
@@ -3247,7 +3286,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Create Google-style dropdown ──
     const dropdown = document.createElement('div');
     dropdown.id = 'search-dropdown';
-    if (searchArea) searchArea.appendChild(dropdown);
+    document.body.appendChild(dropdown);
+
+    function positionDropdown() {
+        if (!searchWrap) return;
+        const rect = searchWrap.getBoundingClientRect();
+        dropdown.style.top  = (rect.bottom + 6) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.width = rect.width + 'px';
+        dropdown.style.transform = 'none';
+    }
+    searchInput.addEventListener('focus', positionDropdown);
+    window.addEventListener('resize', () => { if (dropdown.classList.contains('visible')) positionDropdown(); });
+
+    // Hide dropdown when the user scrolls (search bar moves away)
+    const _mainScroller = document.querySelector('.main-content');
+    if (_mainScroller) {
+        _mainScroller.addEventListener('scroll', () => {
+            if (dropdown.classList.contains('visible')) {
+                const rect = searchWrap ? searchWrap.getBoundingClientRect() : null;
+                if (!rect || rect.bottom < 60) {
+                    hideDropdown();
+                } else {
+                    positionDropdown();
+                }
+            }
+        }, { passive: true });
+    }
 
     // Focus styling
     searchInput.addEventListener('focus', () => {
@@ -3374,10 +3439,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 nameEl.textContent = display;
             }
 
+            // Add favorite star
+            const star = document.createElement('div');
+            star.className = 'favorite-star';
+            star.textContent = isFav(file) ? '★' : '☆';
+            if (isFav(file)) star.classList.add('favorited');
+            
+            star.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFav(file);
+                star.textContent = isFav(file) ? '★' : '☆';
+                star.classList.toggle('favorited', isFav(file));
+                updateSidebarFavBtn();
+            });
+
             item.appendChild(thumb);
             item.appendChild(nameEl);
+            item.appendChild(star);
 
             item.addEventListener('mousedown', (e) => {
+                // Don't trigger if clicking the star
+                if (e.target === star) return;
+                
                 e.preventDefault(); // prevent blur from hiding before click
                 hideDropdown();
                 searchInput.value = '';
@@ -3402,6 +3486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         dropdown.classList.add('visible');
+        positionDropdown();
     }
 
     function hideDropdown() {

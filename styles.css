@@ -141,6 +141,9 @@ body {
 
 .sidebar-btn:active { transform: scale(0.96); }
 
+/* Favorites ★ button in sidebar gets a tilt on hover */
+#sidebar-fav-btn:hover { transform: scale(1.1) rotate(20deg) !important; }
+
 /* =====================================================
    MAIN CONTENT
 ===================================================== */
@@ -510,8 +513,9 @@ h1 {
     transition: color 0.15s, transform 0.15s;
     margin-left: auto;
 }
-.star-btn:hover  { color: #facc15; transform: scale(1.2); }
+.star-btn:hover  { color: #facc15; transform: scale(1.2) rotate(20deg); }
 .star-btn.starred { color: #facc15; text-shadow: 0 0 8px rgba(250,204,21,0.55); }
+.star-btn.starred:hover { transform: scale(1.2) rotate(20deg); }
 
 /* Section count badge */
 .section-count {
@@ -785,8 +789,7 @@ h1 {
    SEARCH DROPDOWN (Google-style)
 ===================================================== */
 #search-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
+    position: fixed;
     left: 50%;
     transform: translateX(-50%);
     width: min(700px, 90vw);
@@ -867,6 +870,36 @@ h1 {
     color: var(--accent-blue);
     font-weight: 600;
 }
+
+.favorite-star {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(var(--accent-rgb), 0.3);
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.favorite-star:hover {
+    color: #facc15;
+    transform: scale(1.2) rotate(20deg);
+}
+
+.favorite-star.favorited {
+    color: #fbbf24;
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+}
+
+.favorite-star.favorited:hover {
+    color: #fbbf24;
+    transform: scale(1.2) rotate(20deg);
+}
+
 
 .search-drop-count {
     font-size: 11px;
