@@ -26,7 +26,7 @@ window.addEventListener('keydown', (e) => {
    Prefix "cl" is part of the actual filename on the CDN.
 ===================================================== */
 let files = [
-   "cl1",
+"cl1",
 "cl100RoomsOfEnemies",
 "cl10bullets",
 "cl10minutestildawn",
@@ -2949,14 +2949,14 @@ let files = [
 "clwwfattitude",
 "clwwfsmackdown2",
 "clxor",
-"clcodeorg",
-"clEB.Client.V1.0.0R2.WASM",
-"clesm",
-"clnpm",
-"clskypack",
-"clsupremeduelistfix",
-"clthiefpuzzle",
-"clunpkg",
+"codeorg",
+"EB.Client.V1.0.0R2.WASM",
+"esm",
+"npm",
+"skypack",
+"supremeduelistfix",
+"thiefpuzzle",
+"unpkg",
 "cl?"
 ];
 /* =====================================================
@@ -3146,8 +3146,8 @@ function generateAllSections() {
       chevron.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
     };
 
-    // Show skeletons immediately while real cards build
-    const skCount = Math.min(filesByChar[char].length, 10);
+    // Show skeletons as placeholders (reserve height so page doesn't jump)
+    const skCount = Math.min(filesByChar[char].length, 6);
     for (let i = 0; i < skCount; i++) {
       const sk = document.createElement('div');
       sk.className = 'game-card-skeleton';
@@ -3159,32 +3159,52 @@ function generateAllSections() {
     section.appendChild(grid);
     container.appendChild(section);
 
-    // Replace skeletons with real cards in idle-time chunks (keeps UI responsive)
-    const delay = allChars.indexOf(char) * 25;
-    setTimeout(() => {
-      const btnList = filesByChar[char].map(file => {
-        const btn = document.createElement('input');
-        btn.type = 'button';
-        btn.value = file;
-        btn.onclick = buildGameClickHandler(file);
-        return btn;
-      });
-      const CHUNK = 25;
+    // Lazy-render: only build real cards when the section scrolls into view
+    const sectionFiles = filesByChar[char];
+    let rendered = false;
+
+    function renderCards() {
+      if (rendered) return;
+      rendered = true;
+      const CHUNK = 30;
       let idx = 0;
       function renderChunk() {
-        const end = Math.min(idx + CHUNK, btnList.length);
+        const end = Math.min(idx + CHUNK, sectionFiles.length);
         if (idx === 0) grid.innerHTML = ''; // clear skeletons on first chunk
         const frag = document.createDocumentFragment();
         for (; idx < end; idx++) {
-          frag.appendChild(transformButtonToCard(btnList[idx]));
+          const btn = document.createElement('input');
+          btn.type = 'button';
+          btn.value = sectionFiles[idx];
+          btn.onclick = buildGameClickHandler(sectionFiles[idx]);
+          frag.appendChild(transformButtonToCard(btn));
         }
         grid.appendChild(frag);
-        if (idx < btnList.length) {
-          setTimeout(renderChunk, 0); // use setTimeout so ALL chunks complete reliably
+        if (idx < sectionFiles.length) {
+          setTimeout(renderChunk, 0);
         }
       }
       renderChunk();
-    }, delay);
+    }
+
+    // Expose so filterGames can force-render if user searches an unrendered section
+    grid._lazyRender = renderCards;
+
+    // Use IntersectionObserver with a generous rootMargin so cards appear
+    // before the user actually reaches the section (feels instant)
+    if ('IntersectionObserver' in window) {
+      const obs = new IntersectionObserver((entries, observer) => {
+        if (entries[0].isIntersecting) {
+          observer.disconnect();
+          renderCards();
+        }
+      }, { rootMargin: '400px 0px' });
+      obs.observe(section);
+    } else {
+      // Fallback for browsers without IntersectionObserver
+      const delay = allChars.indexOf(char) * 20;
+      setTimeout(renderCards, delay);
+    }
   });
 
   renderFavsSection();
@@ -3357,9 +3377,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateHighlight(items);
         } else if (e.key === 'Enter') {
             if (highlightIdx >= 0 && items[highlightIdx]) {
-                items[highlightIdx].click();
-            } else if (items.length === 1 && items[0]) {
-                items[0].click();
+                items[highlightIdx]._openGame && items[highlightIdx]._openGame();
+            } else if (items.length >= 1 && items[0]._openGame && dropdown.classList.contains('visible')) {
+                items[0]._openGame();
             }
         } else if (e.key === 'Escape') {
             hideDropdown();
@@ -3416,15 +3436,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showDropdown(q) {
         if (!q) { hideDropdown(); return; }
-        const allCards = document.querySelectorAll('.game-card');
+        // Search the full files array (covers unrendered lazy sections too)
         const matches = [];
         const seenFiles = new Set();
-        for (const card of allCards) {
-            const name = card.dataset.name || '';
-            const file = card.dataset.file;
-            const display = card.querySelector('.game-card-name')?.textContent || name;
+        for (const file of files) {
+            const display = formatName(file);
+            const name = display.toLowerCase();
             if (name.includes(q) && !seenFiles.has(file)) {
                 seenFiles.add(file);
+                // Find already-rendered card if it exists
+                const card = document.querySelector(`.game-card[data-file="${CSS.escape(file)}"]`);
                 matches.push({ display, file, card });
                 if (matches.length >= 20) break;
             }
@@ -3477,17 +3498,23 @@ document.addEventListener('DOMContentLoaded', () => {
             item.appendChild(nameEl);
             item.appendChild(star);
 
-            item.addEventListener('mousedown', (e) => {
-                // Don't trigger if clicking the star
-                if (e.target === star) return;
-                
-                e.preventDefault();
+            function openGame() {
                 hideDropdown();
                 searchInput.value = '';
                 clearBtn.style.display = 'none';
                 filterGames('');
-                if (card && typeof card.onclick === 'function') card.onclick();
-                else if (card) card.click();
+                const liveCard = document.querySelector(`.game-card[data-file="${CSS.escape(file)}"]`);
+                if (liveCard && typeof liveCard.onclick === 'function') liveCard.onclick();
+                else if (liveCard) liveCard.click();
+                else buildGameClickHandler(file)();
+            }
+
+            item._openGame = openGame;
+
+            item.addEventListener('mousedown', (e) => {
+                if (e.target === star) return;
+                e.preventDefault();
+                openGame();
             });
 
             dropdown.appendChild(item);
@@ -3496,7 +3523,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (matches.length >= 20) {
             const countEl = document.createElement('div');
             countEl.className = 'search-drop-count';
-            const realTotal = Array.from(document.querySelectorAll('.game-card')).filter(c => (c.dataset.name||'').includes(q)).length;
+            const realTotal = files.filter(f => formatName(f).toLowerCase().includes(q)).length;
             countEl.textContent = `Showing 20 of ${realTotal} matches — keep typing to narrow down`;
             dropdown.appendChild(countEl);
         }
@@ -3515,6 +3542,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function filterGames(q) {
+        // If searching, force-render any sections still showing skeletons
+        if (q) {
+            document.querySelectorAll('.letter-section').forEach(section => {
+                if (section.querySelector('.game-card-skeleton')) {
+                    // Trigger the observer callback manually by dispatching a render
+                    const grid = section.querySelector('.buttons-container');
+                    if (grid && grid._lazyRender) grid._lazyRender();
+                }
+            });
+        }
+
         const sections = document.querySelectorAll('.letter-section');
         let totalVisible = 0;
 
@@ -3588,6 +3626,22 @@ function buildGearPanel() {
     const username = sessionStorage.getItem('clocker_user') || 'Personal';
     const gameSource = (window.GAME_BASE_URL || '').includes('cdn.jsdelivr') ? '📦 CDN' : '🌐 Hub';
 
+    // Load saved toggle states
+    const spiderOn   = localStorage.getItem('setting_spiderweb') !== 'off';
+    const compactOn  = localStorage.getItem('setting_compact') === 'on';
+    const clock24On  = localStorage.getItem('setting_clock24') === 'on';
+    const favsOn     = localStorage.getItem('setting_favs') !== 'off';
+    const savedCols  = localStorage.getItem('setting_cols') || 'auto';
+    const savedFont  = localStorage.getItem('setting_font') || 'medium';
+
+    // Apply on load
+    if (!spiderOn) { const c = document.getElementById('spiderweb'); if(c) c.style.display='none'; }
+    if (compactOn) document.body.classList.add('compact-mode');
+    applyFontSize(savedFont);
+    applyColumns(savedCols);
+    if (!favsOn) document.body.classList.add('hide-favs');
+    if (clock24On) document.body.classList.add('clock-24h');
+
     panel.innerHTML = `
         <div class="settings-section">
             <div class="settings-label">Signed in as</div>
@@ -3600,6 +3654,63 @@ function buildGearPanel() {
             <div class="settings-label">Game Source</div>
             <div class="settings-value" id="gear-source">${gameSource}</div>
         </div>
+        <div class="settings-section">
+            <div class="settings-label" style="margin-bottom:8px;">Display</div>
+            <div class="settings-toggle-row">
+                <span class="settings-toggle-label">✨ Spiderweb background</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-spiderweb" ${spiderOn ? 'checked' : ''}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-toggle-row">
+                <span class="settings-toggle-label">⚡ Compact mode</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-compact" ${compactOn ? 'checked' : ''}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-toggle-row">
+                <span class="settings-toggle-label">⭐ Show favorites section</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-favs" ${favsOn ? 'checked' : ''}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-toggle-row">
+                <span class="settings-toggle-label">🕐 24-hour clock</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-clock24" ${clock24On ? 'checked' : ''}>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-label" style="margin-bottom:8px;">Card columns</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${['auto','2','3','4','5'].map(v => `
+                <button class="col-btn${savedCols===v?' col-btn-active':''}" data-cols="${v}"
+                  style="flex:1;min-width:36px;padding:5px 4px;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.2);
+                  background:${savedCols===v?'rgba(var(--accent-rgb),.25)':'rgba(var(--accent-rgb),.06)'};
+                  color:rgba(255,255,255,${savedCols===v?'.95':'.55'});font-size:12px;cursor:pointer;
+                  font-family:Outfit,sans-serif;transition:all .15s;">
+                  ${v==='auto'?'Auto':v}
+                </button>`).join('')}
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-label" style="margin-bottom:8px;">Text size</div>
+            <div style="display:flex;gap:6px;">
+                ${[['small','S'],['medium','M'],['large','L']].map(([v,l]) => `
+                <button class="font-btn${savedFont===v?' font-btn-active':''}" data-font="${v}"
+                  style="flex:1;padding:5px 4px;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.2);
+                  background:${savedFont===v?'rgba(var(--accent-rgb),.25)':'rgba(var(--accent-rgb),.06)'};
+                  color:rgba(255,255,255,${savedFont===v?'.95':'.55'});font-size:13px;cursor:pointer;
+                  font-family:Outfit,sans-serif;transition:all .15s;">
+                  ${l}
+                </button>`).join('')}
+            </div>
+        </div>
         <div class="settings-section" style="padding-bottom:4px;">
             <div class="settings-label" style="margin-bottom:10px;">Theme</div>
             <div id="theme-switcher-wrap"></div>
@@ -3610,6 +3721,79 @@ function buildGearPanel() {
     if (typeof buildThemeButtons === 'function') {
         buildThemeButtons(panel.querySelector('#theme-switcher-wrap'));
     }
+
+    // Spiderweb toggle
+    panel.querySelector('#toggle-spiderweb').addEventListener('change', function() {
+        const canvas = document.getElementById('spiderweb');
+        if (this.checked) {
+            localStorage.setItem('setting_spiderweb', 'on');
+            if (canvas) canvas.style.display = '';
+        } else {
+            localStorage.setItem('setting_spiderweb', 'off');
+            if (canvas) canvas.style.display = 'none';
+        }
+    });
+
+    // Compact mode toggle
+    panel.querySelector('#toggle-compact').addEventListener('change', function() {
+        if (this.checked) {
+            localStorage.setItem('setting_compact', 'on');
+            document.body.classList.add('compact-mode');
+        } else {
+            localStorage.setItem('setting_compact', 'off');
+            document.body.classList.remove('compact-mode');
+        }
+    });
+
+    // Favorites toggle
+    panel.querySelector('#toggle-favs').addEventListener('change', function() {
+        if (this.checked) {
+            localStorage.setItem('setting_favs', 'on');
+            document.body.classList.remove('hide-favs');
+        } else {
+            localStorage.setItem('setting_favs', 'off');
+            document.body.classList.add('hide-favs');
+        }
+    });
+
+    // 24h clock toggle
+    panel.querySelector('#toggle-clock24').addEventListener('change', function() {
+        if (this.checked) {
+            localStorage.setItem('setting_clock24', 'on');
+            document.body.classList.add('clock-24h');
+        } else {
+            localStorage.setItem('setting_clock24', 'off');
+            document.body.classList.remove('clock-24h');
+        }
+    });
+
+    // Column buttons
+    panel.querySelectorAll('.col-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const v = this.dataset.cols;
+            localStorage.setItem('setting_cols', v);
+            applyColumns(v);
+            panel.querySelectorAll('.col-btn').forEach(b => {
+                const active = b.dataset.cols === v;
+                b.style.background = active ? 'rgba(var(--accent-rgb),.25)' : 'rgba(var(--accent-rgb),.06)';
+                b.style.color = active ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.55)';
+            });
+        });
+    });
+
+    // Font size buttons
+    panel.querySelectorAll('.font-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const v = this.dataset.font;
+            localStorage.setItem('setting_font', v);
+            applyFontSize(v);
+            panel.querySelectorAll('.font-btn').forEach(b => {
+                const active = b.dataset.font === v;
+                b.style.background = active ? 'rgba(var(--accent-rgb),.25)' : 'rgba(var(--accent-rgb),.06)';
+                b.style.color = active ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.55)';
+            });
+        });
+    });
 
     // Poll for source update (Firebase resolves async)
     let sourceCheckCount = 0;
@@ -3638,6 +3822,34 @@ function buildGearPanel() {
     });
 }
 
+/* Apply card column count to all game grids */
+function applyColumns(v) {
+    const style = document.getElementById('setting-cols-style') || (() => {
+        const s = document.createElement('style');
+        s.id = 'setting-cols-style';
+        document.head.appendChild(s);
+        return s;
+    })();
+    if (v === 'auto') {
+        style.textContent = '';
+    } else {
+        style.textContent = `.buttons-container { grid-template-columns: repeat(${v}, 1fr) !important; }`;
+    }
+}
+
+/* Apply font size to game card names */
+function applyFontSize(v) {
+    const style = document.getElementById('setting-font-style') || (() => {
+        const s = document.createElement('style');
+        s.id = 'setting-font-style';
+        document.head.appendChild(s);
+        return s;
+    })();
+    const sizes = { small: '0.72rem', medium: '0.82rem', large: '0.96rem' };
+    const size = sizes[v] || sizes.medium;
+    style.textContent = `.game-card-name { font-size: ${size} !important; }`;
+}
+
 
 /* =====================================================
    SPIDERWEB BACKGROUND — loaded from spiderweb.js
@@ -3651,13 +3863,14 @@ function updateClock(){
     const now=new Date();
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    let hours=now.getHours();
+    const rawHours=now.getHours();
     const mins=String(now.getMinutes()).padStart(2,'0');
     const secs=String(now.getSeconds()).padStart(2,'0');
-    const ampm=hours>=12?'PM':'AM';
-    hours=hours%12||12;
+    const is24=document.body.classList.contains('clock-24h');
+    const ampm=rawHours>=12?'PM':'AM';
+    const hours=is24?String(rawHours).padStart(2,'0'):String(rawHours%12||12);
     const el=document.getElementById('clock');
-    if(el) el.textContent=`${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}  •  ${hours}:${mins}:${secs} ${ampm}`;
+    if(el) el.innerHTML=`${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}&nbsp;&nbsp;•&nbsp;&nbsp;${hours}:${mins}:${secs} <span class="clock-ampm">${ampm}</span>`;
 }
 updateClock();
 setInterval(updateClock,1000);
@@ -3680,7 +3893,7 @@ setInterval(updateClock,1000);
         red:    { hex:'#f87171', rgb:'248,113,113',  bg:'#1a0505,#200606,#1c0505', card:'30,6,6' },
         orange: { hex:'#fb923c', rgb:'251,146,60',   bg:'#190a02,#221003,#1c0e03', card:'28,14,4' },
         gold:   { hex:'#fbbf24', rgb:'251,191,36',   bg:'#191200,#221900,#1c1500', card:'26,20,2' },
-        grey:   { hex:'#94a3b8', rgb:'148,163,184',  bg:'#0d1117,#141a24,#101620', card:'16,20,30' },
+        grey:   { hex:'#94a3b8', rgb:'148,163,184',  bg:'#111111,#1a1a1a,#151515', card:'20,20,22' },
     };
 
     /* ── One-time static <style> block — all rules use CSS vars only ── */
@@ -3725,6 +3938,10 @@ setInterval(updateClock,1000);
         .search-drop-thumb { background: rgba(var(--accent-rgb),.1) !important; border-color: rgba(var(--accent-rgb),.15) !important; color: rgba(var(--accent-rgb),.7) !important; }
         .search-drop-item:hover,.search-drop-item.highlighted { background: rgba(var(--accent-rgb),.1) !important; }
         .search-drop-name mark { color: var(--accent-blue) !important; }
+        /* ── Settings: hide favorites section ── */
+        body.hide-favs #section-FAVS { display: none !important; }
+        /* ── Settings: hide AM/PM when 24h clock is on ── */
+        body.clock-24h .clock-ampm { display: none !important; }
     `;
     document.head.appendChild(staticStyle);
 
@@ -3738,6 +3955,7 @@ setInterval(updateClock,1000);
         root.style.setProperty('--accent-blue', t.hex);
         root.style.setProperty('--accent-rgb',  t.rgb);
         root.style.setProperty('--card-bg', `rgba(${t.card},0.6)`);
+        root.style.setProperty('--sidebar-bg', `rgba(${t.card},0.94)`);
         root.style.setProperty('--theme-bg',
             `radial-gradient(ellipse at top right,${c1} 0%,${c2} 50%,${c2} 100%),` +
             `radial-gradient(ellipse at bottom left,${c3} 0%,${c2} 70%)`
@@ -3779,10 +3997,13 @@ setInterval(updateClock,1000);
         const d1 = `#${[r,g,b].map(c=>darken(c,.07).toString(16).padStart(2,'0')).join('')}`;
         const d2 = `#${[r,g,b].map(c=>darken(c,.10).toString(16).padStart(2,'0')).join('')}`;
         const d3 = `#${[r,g,b].map(c=>darken(c,.08).toString(16).padStart(2,'0')).join('')}`;
+        // card tint: keep a tiny hint of the hue but stay very dark (like preset themes)
+        const cr = darken(r, .10), cg = darken(g, .10), cb = darken(b, .10);
         const root = document.documentElement;
         root.style.setProperty('--accent-blue', hex);
         root.style.setProperty('--accent-rgb',  rgb);
-        root.style.setProperty('--card-bg', `rgba(${darken(r,.55)},${darken(g,.55)},${darken(b,.55)},0.6)`);
+        root.style.setProperty('--card-bg',    `rgba(${cr},${cg},${cb},0.6)`);
+        root.style.setProperty('--sidebar-bg', `rgba(${cr},${cg},${cb},0.94)`);
         root.style.setProperty('--theme-bg',
             `radial-gradient(ellipse at top right,${d1} 0%,${d2} 50%,${d2} 100%),` +
             `radial-gradient(ellipse at bottom left,${d3} 0%,${d2} 70%)`
@@ -3790,30 +4011,69 @@ setInterval(updateClock,1000);
         localStorage.setItem('siteTheme', 'custom');
         localStorage.setItem('siteThemeCustomHex', hex);
         document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-        const wheel = document.querySelector('.theme-btn-wheel');
-        if (wheel) { wheel.classList.add('active'); wheel.style.background = hex; }
+        // Update the custom color pill
+        const pill = document.querySelector('.theme-btn-wheel-pill');
+        if (pill) {
+            const sw = pill.querySelector('.wheel-swatch');
+            const lb = pill.querySelector('span:nth-child(3)');
+            if (sw) { sw.style.background = hex; sw.style.display = 'block'; }
+            if (lb) lb.textContent = 'Custom: ' + hex;
+        }
     }
 
-    /* ── Extend buildThemeButtons to include colour wheel ── */
+    /* ── Extend buildThemeButtons to include colour wheel pill ── */
     const _origBuildThemeButtons = buildThemeButtons;
     buildThemeButtons = function(container) {
         _origBuildThemeButtons(container);
-        const wheelWrap = document.createElement('label');
-        wheelWrap.className = 'theme-btn theme-btn-wheel';
-        wheelWrap.title = 'Custom colour';
+
+        // Full-width custom color pill — sits below the swatch row
         const savedCustom = localStorage.getItem('siteThemeCustomHex') || '#38bdf8';
-        wheelWrap.style.background = localStorage.getItem('siteTheme') === 'custom' ? savedCustom : 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)';
-        wheelWrap.style.cursor = 'pointer';
-        wheelWrap.style.position = 'relative';
-        wheelWrap.style.overflow = 'hidden';
+        const isCustom = localStorage.getItem('siteTheme') === 'custom';
+
+        const pill = document.createElement('label');
+        pill.className = 'theme-btn-wheel-pill';
+        pill.title = 'Pick any custom color';
+        pill.style.cssText = [
+            'display:flex', 'align-items:center', 'gap:8px',
+            'width:100%', 'margin-top:8px', 'padding:6px 10px',
+            'border-radius:8px', 'cursor:pointer', 'position:relative',
+            'border:1px solid rgba(255,255,255,0.15)',
+            'background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))',
+            'box-sizing:border-box', 'transition:border-color 0.2s,background 0.2s',
+            'overflow:hidden',
+        ].join(';');
+
+        // Rainbow strip on the left
+        const strip = document.createElement('span');
+        strip.style.cssText = 'width:18px;height:18px;border-radius:50%;flex-shrink:0;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);border:2px solid rgba(255,255,255,0.3);';
+
+        // Color swatch showing current custom color (only visible if active)
+        const swatch = document.createElement('span');
+        swatch.className = 'wheel-swatch';
+        swatch.style.cssText = `width:14px;height:14px;border-radius:4px;flex-shrink:0;background:${savedCustom};border:1.5px solid rgba(255,255,255,0.25);display:${isCustom ? 'block' : 'none'};`;
+
+        // Label text
+        const label = document.createElement('span');
+        label.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.7);font-family:Outfit,sans-serif;flex:1;';
+        label.textContent = isCustom ? 'Custom: ' + savedCustom : 'Custom color…';
+
+        // Hidden color input
         const colorInput = document.createElement('input');
         colorInput.type = 'color';
         colorInput.value = savedCustom;
         colorInput.style.cssText = 'position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:none;padding:0;';
         colorInput.addEventListener('input', e => applyCustomColor(e.target.value));
         colorInput.addEventListener('change', e => applyCustomColor(e.target.value));
-        wheelWrap.appendChild(colorInput);
-        container.appendChild(wheelWrap);
+
+        pill.appendChild(strip);
+        pill.appendChild(swatch);
+        pill.appendChild(label);
+        pill.appendChild(colorInput);
+        container.appendChild(pill);
+
+        // Hover effect
+        pill.addEventListener('mouseenter', () => { pill.style.borderColor = 'rgba(255,255,255,0.35)'; pill.style.background = 'linear-gradient(90deg,rgba(255,255,255,0.10),rgba(255,255,255,0.05))'; });
+        pill.addEventListener('mouseleave', () => { pill.style.borderColor = 'rgba(255,255,255,0.15)'; pill.style.background = 'linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))'; });
     };
 
     /* ── Expose globally so buildGearPanel() can call it ── */

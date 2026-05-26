@@ -432,7 +432,7 @@ document.addEventListener('keydown', function(e) {
     debugger;
     if (performance.now() - start > 100) {
       console.clear();
-      console.log("Developer tools are disabled for security.");
+      console.warn("Developer tools are disabled for security.");
     }
   }, 1000);
 })();
