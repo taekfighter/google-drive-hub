@@ -1278,9 +1278,44 @@ function checkCaps(e, warnId) {
 </script>
 <script>
 (function() {
-  /* Single-tab enforcement for login.html
-     Uses localStorage to claim a slot. If another login tab already holds it,
-     redirect to a simple "already open" page-replace so there's no loop.      */
+  /* ── Single-tab enforcement for login.html ──────────────────────────────
+     Blocks:
+       1. Opening login.html while another login tab is already open
+       2. Opening login.html while clocker.html or clocker2.html is already open
+     Uses localStorage keys that clocker.html already writes: gd_hub_tab
+  ──────────────────────────────────────────────────────────────────────── */
+
+  function showBlockedScreen(title, body) {
+    document.body.innerHTML = [
+      '<style>body{background:#060d1a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:Outfit,sans-serif;color:#f1f5f9;}',
+      '.box{text-align:center;padding:40px;border:1px solid rgba(56,189,248,0.18);border-radius:12px;background:rgba(8,15,30,0.9);max-width:380px;}',
+      'h2{font-family:Orbitron,sans-serif;font-size:16px;letter-spacing:3px;color:#38bdf8;margin-bottom:14px;}',
+      'p{font-size:13px;color:rgba(56,189,248,0.45);line-height:1.9;margin-bottom:24px;}',
+      'button{padding:10px 28px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.35);color:#38bdf8;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;border-radius:6px;cursor:pointer;}</style>',
+      '<div class="box"><h2>' + title + '</h2>',
+      '<p>' + body + '</p>',
+      '<button onclick="window.close()">Close This Tab</button></div>'
+    ].join('');
+  }
+
+  // ── Check 1: Is clocker.html or clocker2.html already open? ──
+  var hubTabKey = 'gd_hub_tab';
+  if (localStorage.getItem(hubTabKey)) {
+    // Ping the hub tab to see if it's actually alive
+    var HUB_PING = 'gd_hub_ping';
+    var hubVal   = localStorage.getItem(hubTabKey);
+    localStorage.setItem(HUB_PING, hubVal + ':' + Date.now());
+    setTimeout(function() {
+      if (localStorage.getItem(hubTabKey)) {
+        showBlockedScreen(
+          'Hub Already Open',
+          'The Game Hub is already open<br>in another tab. Please use that tab,<br>or close it before logging in again.'
+        );
+      }
+    }, 450);
+  }
+
+  // ── Check 2: Is another login tab already open? ──
   var KEY   = 'gd_login_tab';
   var PING  = 'gd_login_ping';
   var MY_ID = Math.random().toString(36).slice(2);
@@ -1292,16 +1327,10 @@ function checkCaps(e, warnId) {
     setTimeout(function() {
       if (localStorage.getItem(KEY) !== MY_ID) {
         // Another tab is alive — show duplicate notice
-        document.body.innerHTML = [
-          '<style>body{background:#060d1a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:Outfit,sans-serif;color:#f1f5f9;}',
-          '.box{text-align:center;padding:40px;border:1px solid rgba(56,189,248,0.18);border-radius:12px;background:rgba(8,15,30,0.9);max-width:380px;}',
-          'h2{font-family:Orbitron,sans-serif;font-size:16px;letter-spacing:3px;color:#38bdf8;margin-bottom:14px;}',
-          'p{font-size:13px;color:rgba(56,189,248,0.45);line-height:1.9;margin-bottom:24px;}',
-          'button{padding:10px 28px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.35);color:#38bdf8;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;border-radius:6px;cursor:pointer;}</style>',
-          '<div class="box"><h2>Already Open</h2>',
-          '<p>The Account Portal is already open<br>in another tab. Please use that tab.</p>',
-          '<button onclick="window.close()">Close This Tab</button></div>'
-        ].join('');
+        showBlockedScreen(
+          'Already Open',
+          'The Account Portal is already open<br>in another tab. Please use that tab.'
+        );
         return;
       }
     }, 400);
@@ -1321,5 +1350,60 @@ function checkCaps(e, warnId) {
 
 <!-- SPIDERWEB BACKGROUND -->
 <script src="spiderweb.js"></script>
+
+<!-- ══ ANNOUNCEMENT BANNER ══ -->
+<style>
+#ann-banner {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 99998;
+  background: linear-gradient(90deg, rgba(8,15,30,0.97), rgba(12,22,45,0.97));
+  border-bottom: 1px solid rgba(56,189,248,0.2);
+  padding: 7px 0;
+  overflow: hidden;
+  box-shadow: 0 2px 16px rgba(56,189,248,0.08);
+}
+#ann-banner.visible { display: block; }
+#ann-track {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100vw;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  color: rgba(56,189,248,0.9);
+  letter-spacing: 0.3px;
+  animation: ann-slide 30s linear infinite;
+}
+#ann-track::before { content: '📢  '; }
+#ann-track::after  { content: '   ·   ·   ·'; opacity: 0.3; }
+@keyframes ann-slide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+</style>
+<div id="ann-banner"><div id="ann-track"></div></div>
+<script>
+(function(){
+  try {
+    var fb = (typeof firebase !== 'undefined') ? firebase : null;
+    if (!fb || !fb.apps.length) return;
+    fb.database().ref('config/announcement').on('value', function(snap){
+      var ann    = snap.val() || {};
+      var banner = document.getElementById('ann-banner');
+      var track  = document.getElementById('ann-track');
+      if (!banner || !track) return;
+      if (ann.active && ann.text && ann.text.trim()) {
+        track.textContent = ann.text.trim();
+        var dur = Math.round(1200 / (ann.speed || 35));
+        track.style.animationDuration = dur + 's';
+        banner.classList.add('visible');
+      } else {
+        banner.classList.remove('visible');
+      }
+    });
+  } catch(e) {}
+})();
+</script>
 </body>
 </html>

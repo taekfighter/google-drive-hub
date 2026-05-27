@@ -1,6 +1,122 @@
 // Guard against double-loading
 if (window._gamesLoaded) { throw new Error('games.js already loaded'); }
 window._gamesLoaded = true;
+
+/* =====================================================
+   PERSONAL HUB RUNTIME — runs only when Firebase is
+   available (personal-clocker-v2.html and the mobile
+   variant both load Firebase before this script).
+
+   Handles:
+     1. Game-source toggle (Hub vs CDN via Firebase flag)
+     2. Announcement banner
+   No auth, no tracking — personal hub is private.
+===================================================== */
+(function () {
+  if (typeof firebase === 'undefined') return;
+
+  /* ── Firebase init ────────────────────────────────── */
+  var FB_APP = firebase.apps.length
+    ? firebase.app()
+    : firebase.initializeApp({
+        apiKey:      'AIzaSyBJ4lMm2Nf9u6UeJLHH-Ap9z7lX9wBFEuc',
+        databaseURL: 'https://drive-portal-d7eb1-default-rtdb.firebaseio.com',
+      });
+
+  var db = firebase.database();
+
+  /* ── Game-source toggle ───────────────────────────── */
+  var HUB_URL = 'https://google-drive-hub.pages.dev';
+  var CDN_URL = 'https://cdn.jsdelivr.net/gh/taekfighter/google-drive-hub@main/UGS-Files';
+
+  // Default to Hub; Firebase flag can switch to CDN
+  window.GAME_BASE_URL = HUB_URL;
+
+  db.ref('config/gameSourceV2').get().then(function (snap) {
+    if (snap.exists() && snap.val() === true) {
+      window.GAME_BASE_URL = CDN_URL;
+    }
+  }).catch(function () {});
+
+  /* ── Announcement banner ──────────────────────────── */
+  db.ref('config/announcement').on('value', function (snap) {
+    var ann    = snap.val() || {};
+    var banner = document.getElementById('ann-banner');
+    var track  = document.getElementById('ann-track');
+    if (!banner || !track) return;
+    if (ann.active && ann.text && ann.text.trim()) {
+      track.textContent = ann.text.trim();
+      track.style.animationDuration = Math.round(1200 / (ann.speed || 35)) + 's';
+      banner.classList.add('visible');
+      document.body.classList.add('ann-active');
+    } else {
+      banner.classList.remove('visible');
+      document.body.classList.remove('ann-active');
+    }
+  });
+})();
+
+
+/* =====================================================
+   NEW BADGE SYSTEM
+   To mark a game as "New", add  // NEW  at the end of
+   its line in the files array below, like:
+       "clSomeCoolGame",  // NEW
+   The badge disappears automatically after 7 days
+   from when the script was last deployed — to reset
+   the clock, remove // NEW from old entries.
+   The date is encoded right here:
+===================================================== */
+(function(){
+    // ── Cutoff: entries marked // NEW added within this many ms ago show the badge ──
+    // We use a hardcoded "deploy date" embedded in the script itself as a timestamp.
+    // Change this date whenever you do a fresh deploy:
+    var DEPLOY_DATE = new Date('2026-05-26').getTime();
+    var SHOW_MS     = 7 * 24 * 60 * 60 * 1000; // 7 days
+    var withinWindow = (Date.now() - DEPLOY_DATE) < SHOW_MS;
+
+    // NEW-tagged games are parsed from the source text of this script.
+    // They're detected by the literal comment "// NEW" on their line.
+    var tagged = new Set();
+    if (withinWindow) {
+        // Read own source via document.currentScript or by scanning scripts
+        var src = '';
+        if (document.currentScript) {
+            src = document.currentScript.textContent;
+        } else {
+            document.querySelectorAll('script').forEach(function(s){ if (s.textContent.includes('_gamesLoaded')) src = s.textContent; });
+        }
+        if (src) {
+            src.split('\n').forEach(function(line){
+                // Match lines like:  "clSomeGame",  // NEW
+                var m = line.match(/["']([^"']+)["'][,\s]*\/\/\s*NEW\s*$/i);
+                if (m) tagged.add(m[1]);
+            });
+        }
+    }
+    window._newGames = tagged;
+
+    // Inject badge CSS once
+    var style = document.createElement('style');
+    style.textContent = [
+        '.new-badge{',
+            'position:absolute;top:5px;right:5px;',
+            'background:linear-gradient(135deg,#22c55e,#16a34a);',
+            'color:#fff;font-size:9px;font-weight:700;',
+            'letter-spacing:1.2px;padding:2px 6px;border-radius:4px;',
+            'text-transform:uppercase;',
+            'box-shadow:0 0 8px rgba(34,197,94,0.5);',
+            'pointer-events:none;z-index:5;',
+            'animation:new-badge-pulse 2.5s ease-in-out infinite;',
+        '}',
+        '@keyframes new-badge-pulse{',
+            '0%,100%{box-shadow:0 0 6px rgba(34,197,94,0.5);}',
+            '50%{box-shadow:0 0 14px rgba(34,197,94,0.85);}',
+        '}',
+        '.game-card.has-new-badge{position:relative;}',
+    ].join('');
+    document.head.appendChild(style);
+})();
 /* Console locked by security.js — loaded before this script in clocker.html */
 
 /* =====================================================
@@ -3633,6 +3749,12 @@ function buildGearPanel() {
     const favsOn     = localStorage.getItem('setting_favs') !== 'off';
     const savedCols  = localStorage.getItem('setting_cols') || 'auto';
     const savedFont  = localStorage.getItem('setting_font') || 'medium';
+    const savedTab   = localStorage.getItem('setting_active_tab') || 'display';
+
+    // Load saved spiderweb tuning
+    const swSpeed = parseFloat(localStorage.getItem('setting_sw_speed') || '1.0');
+    const swNodes = parseInt(localStorage.getItem('setting_sw_nodes')   || '90',  10);
+    const swDist  = parseInt(localStorage.getItem('setting_sw_dist')    || '130', 10);
 
     // Apply on load
     if (!spiderOn) { const c = document.getElementById('spiderweb'); if(c) c.style.display='none'; }
@@ -3641,79 +3763,137 @@ function buildGearPanel() {
     applyColumns(savedCols);
     if (!favsOn) document.body.classList.add('hide-favs');
     if (clock24On) document.body.classList.add('clock-24h');
+    window._sw_speed = swSpeed;
+    window._sw_nodes = swNodes;
+    window._sw_dist  = swDist;
+
+    // Inject tabbed panel styles
+    const tabStyle = document.createElement('style');
+    tabStyle.textContent = `
+    #settings-panel { width: 260px !important; padding: 0 !important; }
+    .sp-header { display:flex; align-items:center; gap:8px; padding:10px 12px 0; }
+    .sp-user { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+    .sp-user span { font-size:11px; color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:Outfit,sans-serif; }
+    .sp-src { font-size:10px; color:rgba(var(--accent-rgb),.7); font-family:Outfit,sans-serif; white-space:nowrap; }
+    .sp-tabs { display:flex; gap:2px; padding:8px 8px 0; }
+    .sp-tab { flex:1; padding:5px 2px; background:rgba(var(--accent-rgb),.05); border:1px solid rgba(var(--accent-rgb),.12); border-bottom:none; border-radius:6px 6px 0 0; color:rgba(255,255,255,.4); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; text-align:center; transition:all .15s; letter-spacing:.3px; }
+    .sp-tab:hover { color:rgba(255,255,255,.7); background:rgba(var(--accent-rgb),.1); }
+    .sp-tab.active { background:rgba(var(--accent-rgb),.18); border-color:rgba(var(--accent-rgb),.3); color:rgba(var(--accent-rgb),1); }
+    .sp-body { padding:10px; border-top:1px solid rgba(var(--accent-rgb),.18); }
+    .sp-pane { display:none; }
+    .sp-pane.active { display:block; }
+    .sp-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+    .sp-row-label { font-size:11px; color:rgba(255,255,255,.65); font-family:Outfit,sans-serif; }
+    .sp-mini-group { display:flex; gap:4px; margin-top:6px; }
+    .sp-mini-btn { flex:1; padding:4px 2px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.5); font-size:11px; cursor:pointer; font-family:Outfit,sans-serif; transition:all .15s; text-align:center; }
+    .sp-mini-btn.active, .sp-mini-btn:hover { background:rgba(var(--accent-rgb),.25); color:rgba(255,255,255,.95); border-color:rgba(var(--accent-rgb),.45); }
+    .sp-divider { height:1px; background:rgba(var(--accent-rgb),.1); margin:8px 0; }
+    .sw-slider-row { margin-bottom:9px; }
+    .sw-slider-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
+    .sw-slider-lbl { font-size:10px; color:rgba(255,255,255,.55); font-family:Outfit,sans-serif; text-transform:uppercase; letter-spacing:.4px; }
+    .sw-slider-val { font-size:10px; color:rgba(var(--accent-rgb),.9); font-family:Outfit,sans-serif; min-width:28px; text-align:right; }
+    .sw-range { -webkit-appearance:none; appearance:none; width:100%; height:3px; border-radius:2px; background:rgba(var(--accent-rgb),.15); outline:none; cursor:pointer; }
+    .sw-range::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:rgba(var(--accent-rgb),1); border:none; cursor:pointer; }
+    .sw-range::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:rgba(var(--accent-rgb),1); border:none; cursor:pointer; }
+    .sw-reset { width:100%; margin-top:8px; padding:5px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.45); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; transition:all .15s; letter-spacing:.3px; }
+    .sw-reset:hover { background:rgba(var(--accent-rgb),.15); color:rgba(255,255,255,.8); }
+    `;
+    document.head.appendChild(tabStyle);
 
     panel.innerHTML = `
-        <div class="settings-section">
-            <div class="settings-label">Signed in as</div>
-            <div class="settings-value" style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:18px;">👤</span>
+        <div class="sp-header">
+            <div class="sp-user">
+                <span style="font-size:14px;">👤</span>
                 <span id="gear-username">${username}</span>
             </div>
+            <div class="sp-src" id="gear-source">${gameSource}</div>
         </div>
-        <div class="settings-section">
-            <div class="settings-label">Game Source</div>
-            <div class="settings-value" id="gear-source">${gameSource}</div>
+        <div class="sp-tabs">
+            <button class="sp-tab${savedTab==='display'?' active':''}" data-tab="display">Display</button>
+            <button class="sp-tab${savedTab==='layout'?' active':''}" data-tab="layout">Layout</button>
+            <button class="sp-tab${savedTab==='theme'?' active':''}" data-tab="theme">Theme</button>
+            <button class="sp-tab${savedTab==='web'?' active':''}" data-tab="web">Web</button>
         </div>
-        <div class="settings-section">
-            <div class="settings-label" style="margin-bottom:8px;">Display</div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">✨ Spiderweb background</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-spiderweb" ${spiderOn ? 'checked' : ''}>
-                    <span class="toggle-track"></span>
-                </label>
+        <div class="sp-body">
+
+            <!-- DISPLAY TAB -->
+            <div class="sp-pane${savedTab==='display'?' active':''}" data-pane="display">
+                <div class="sp-row">
+                    <span class="sp-row-label">✨ Spiderweb</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-spiderweb" ${spiderOn ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="sp-row">
+                    <span class="sp-row-label">⚡ Compact mode</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-compact" ${compactOn ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="sp-row">
+                    <span class="sp-row-label">⭐ Favorites section</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-favs" ${favsOn ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="sp-row">
+                    <span class="sp-row-label">🕐 24-hour clock</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-clock24" ${clock24On ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
             </div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">⚡ Compact mode</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-compact" ${compactOn ? 'checked' : ''}>
-                    <span class="toggle-track"></span>
-                </label>
+
+            <!-- LAYOUT TAB -->
+            <div class="sp-pane${savedTab==='layout'?' active':''}" data-pane="layout">
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Card Columns</div>
+                <div class="sp-mini-group">
+                    ${['auto','2','3','4','5'].map(v => `
+                    <button class="sp-mini-btn col-btn${savedCols===v?' active':''}" data-cols="${v}">${v==='auto'?'A':v}</button>`).join('')}
+                </div>
+                <div class="sp-divider"></div>
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Text Size</div>
+                <div class="sp-mini-group">
+                    ${[['small','S'],['medium','M'],['large','L']].map(([v,l]) => `
+                    <button class="sp-mini-btn font-btn${savedFont===v?' active':''}" data-font="${v}">${l}</button>`).join('')}
+                </div>
             </div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">⭐ Show favorites section</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-favs" ${favsOn ? 'checked' : ''}>
-                    <span class="toggle-track"></span>
-                </label>
+
+            <!-- THEME TAB -->
+            <div class="sp-pane${savedTab==='theme'?' active':''}" data-pane="theme">
+                <div id="theme-switcher-wrap"></div>
             </div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">🕐 24-hour clock</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-clock24" ${clock24On ? 'checked' : ''}>
-                    <span class="toggle-track"></span>
-                </label>
+
+            <!-- WEB TAB -->
+            <div class="sp-pane${savedTab==='web'?' active':''}" data-pane="web">
+                <div class="sw-slider-row">
+                    <div class="sw-slider-top">
+                        <span class="sw-slider-lbl">⚡ Speed</span>
+                        <span class="sw-slider-val" id="sw-speed-val">${swSpeed.toFixed(1)}x</span>
+                    </div>
+                    <input type="range" class="sw-range" id="sw-speed" min="0.1" max="3" step="0.1" value="${swSpeed}">
+                </div>
+                <div class="sw-slider-row">
+                    <div class="sw-slider-top">
+                        <span class="sw-slider-lbl">🔵 Nodes</span>
+                        <span class="sw-slider-val" id="sw-nodes-val">${swNodes}</span>
+                    </div>
+                    <input type="range" class="sw-range" id="sw-nodes" min="20" max="200" step="5" value="${swNodes}">
+                </div>
+                <div class="sw-slider-row">
+                    <div class="sw-slider-top">
+                        <span class="sw-slider-lbl">🕸 Connect</span>
+                        <span class="sw-slider-val" id="sw-dist-val">${swDist}px</span>
+                    </div>
+                    <input type="range" class="sw-range" id="sw-dist" min="60" max="300" step="10" value="${swDist}">
+                </div>
+                <button class="sw-reset" id="sw-reset">Reset defaults</button>
             </div>
-        </div>
-        <div class="settings-section">
-            <div class="settings-label" style="margin-bottom:8px;">Card columns</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                ${['auto','2','3','4','5'].map(v => `
-                <button class="col-btn${savedCols===v?' col-btn-active':''}" data-cols="${v}"
-                  style="flex:1;min-width:36px;padding:5px 4px;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.2);
-                  background:${savedCols===v?'rgba(var(--accent-rgb),.25)':'rgba(var(--accent-rgb),.06)'};
-                  color:rgba(255,255,255,${savedCols===v?'.95':'.55'});font-size:12px;cursor:pointer;
-                  font-family:Outfit,sans-serif;transition:all .15s;">
-                  ${v==='auto'?'Auto':v}
-                </button>`).join('')}
-            </div>
-        </div>
-        <div class="settings-section">
-            <div class="settings-label" style="margin-bottom:8px;">Text size</div>
-            <div style="display:flex;gap:6px;">
-                ${[['small','S'],['medium','M'],['large','L']].map(([v,l]) => `
-                <button class="font-btn${savedFont===v?' font-btn-active':''}" data-font="${v}"
-                  style="flex:1;padding:5px 4px;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.2);
-                  background:${savedFont===v?'rgba(var(--accent-rgb),.25)':'rgba(var(--accent-rgb),.06)'};
-                  color:rgba(255,255,255,${savedFont===v?'.95':'.55'});font-size:13px;cursor:pointer;
-                  font-family:Outfit,sans-serif;transition:all .15s;">
-                  ${l}
-                </button>`).join('')}
-            </div>
-        </div>
-        <div class="settings-section" style="padding-bottom:4px;">
-            <div class="settings-label" style="margin-bottom:10px;">Theme</div>
-            <div id="theme-switcher-wrap"></div>
+
         </div>
     `;
     document.body.appendChild(panel);
@@ -3721,6 +3901,58 @@ function buildGearPanel() {
     if (typeof buildThemeButtons === 'function') {
         buildThemeButtons(panel.querySelector('#theme-switcher-wrap'));
     }
+
+    // Spiderweb live controls
+    (function() {
+        function wire() {
+            var speedEl = panel.querySelector('#sw-speed');
+            var nodesEl = panel.querySelector('#sw-nodes');
+            var distEl  = panel.querySelector('#sw-dist');
+            if (!speedEl) return;
+
+            speedEl.addEventListener('input', function() {
+                var v = parseFloat(this.value);
+                window._sw_speed = v;
+                localStorage.setItem('setting_sw_speed', v);
+                panel.querySelector('#sw-speed-val').textContent = v.toFixed(1) + 'x';
+            });
+            nodesEl.addEventListener('input', function() {
+                var v = parseInt(this.value, 10);
+                window._sw_nodes = v;
+                localStorage.setItem('setting_sw_nodes', v);
+                panel.querySelector('#sw-nodes-val').textContent = v;
+                if (typeof window._sw_rebuild === 'function') window._sw_rebuild();
+            });
+            distEl.addEventListener('input', function() {
+                var v = parseInt(this.value, 10);
+                window._sw_dist = v;
+                localStorage.setItem('setting_sw_dist', v);
+                panel.querySelector('#sw-dist-val').textContent = v + 'px';
+            });
+            panel.querySelector('#sw-reset').addEventListener('click', function() {
+                window._sw_speed = 1.0; window._sw_nodes = 90; window._sw_dist = 130;
+                localStorage.removeItem('setting_sw_speed');
+                localStorage.removeItem('setting_sw_nodes');
+                localStorage.removeItem('setting_sw_dist');
+                speedEl.value = 1.0; nodesEl.value = 90; distEl.value = 130;
+                panel.querySelector('#sw-speed-val').textContent = '1.0x';
+                panel.querySelector('#sw-nodes-val').textContent = '90';
+                panel.querySelector('#sw-dist-val').textContent  = '130px';
+                if (typeof window._sw_rebuild === 'function') window._sw_rebuild();
+            });
+        }
+        wire();
+    })();
+
+    // Tab switching
+    panel.querySelectorAll('.sp-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const t = this.dataset.tab;
+            localStorage.setItem('setting_active_tab', t);
+            panel.querySelectorAll('.sp-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            panel.querySelectorAll('.sp-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === t));
+        });
+    });
 
     // Spiderweb toggle
     panel.querySelector('#toggle-spiderweb').addEventListener('change', function() {
@@ -3773,11 +4005,7 @@ function buildGearPanel() {
             const v = this.dataset.cols;
             localStorage.setItem('setting_cols', v);
             applyColumns(v);
-            panel.querySelectorAll('.col-btn').forEach(b => {
-                const active = b.dataset.cols === v;
-                b.style.background = active ? 'rgba(var(--accent-rgb),.25)' : 'rgba(var(--accent-rgb),.06)';
-                b.style.color = active ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.55)';
-            });
+            panel.querySelectorAll('.col-btn').forEach(b => b.classList.toggle('active', b.dataset.cols === v));
         });
     });
 
@@ -3787,11 +4015,7 @@ function buildGearPanel() {
             const v = this.dataset.font;
             localStorage.setItem('setting_font', v);
             applyFontSize(v);
-            panel.querySelectorAll('.font-btn').forEach(b => {
-                const active = b.dataset.font === v;
-                b.style.background = active ? 'rgba(var(--accent-rgb),.25)' : 'rgba(var(--accent-rgb),.06)';
-                b.style.color = active ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.55)';
-            });
+            panel.querySelectorAll('.font-btn').forEach(b => b.classList.toggle('active', b.dataset.font === v));
         });
     });
 
@@ -4173,13 +4397,19 @@ function transformButtonToCard(btn) {
 
     const thumb = makeCSSThumb(displayName);
 
-
-
-
     const nameSpan = document.createElement('span');
     nameSpan.className = 'game-card-name';
     nameSpan.textContent = displayName;
     nameSpan.dataset.fullname = displayName;
+
+    // ── NEW badge — shown if file is in window._newGames set ──
+    if (window._newGames && window._newGames.has(file)) {
+        const badge = document.createElement('span');
+        badge.className = 'new-badge';
+        badge.textContent = 'NEW';
+        card.appendChild(badge);
+        card.classList.add('has-new-badge');
+    }
 
     // Star button
     const star = document.createElement('button');

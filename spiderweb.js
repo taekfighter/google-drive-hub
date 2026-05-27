@@ -6,8 +6,15 @@
     let nodes = [], gridCols = 1, gridRows = 1, grid = [];
     let mouse = { x: -9999, y: -9999 };
 
-    const N     = 90;
-    const DIST  = 130;
+    // These can be overridden by the settings panel via window globals
+    function getCfg() {
+        return {
+            N:     window._sw_nodes != null ? window._sw_nodes : 90,
+            DIST:  window._sw_dist  != null ? window._sw_dist  : 130,
+            SPEED: window._sw_speed != null ? window._sw_speed : 1.0,
+        };
+    }
+
     const MDIST = 160;
     const CELL  = 130;
     const FPS   = 60;
@@ -16,6 +23,9 @@
     let rafId   = null;
     let hue     = 0;   // global hue that slowly cycles
 
+    // Allow settings panel to trigger a node rebuild
+    window._sw_rebuild = function() { initNodes(); };
+
     function resize() {
         W = canvas.width  = window.innerWidth;
         H = canvas.height = window.innerHeight;
@@ -23,6 +33,7 @@
     }
 
     function initNodes() {
+        const { N } = getCfg();
         const cols  = Math.max(1, Math.ceil(Math.sqrt(N * W / H)));
         const rows  = Math.max(1, Math.ceil(N / cols));
         const cellW = W / cols, cellH = H / rows;
@@ -87,10 +98,12 @@
 
         ctx.clearRect(0, 0, W, H);
 
+        const { DIST, SPEED } = getCfg();
+
         // Move nodes
         for (const n of nodes) {
-            n.x += n.vx * dt;
-            n.y += n.vy * dt;
+            n.x += n.vx * dt * SPEED;
+            n.y += n.vy * dt * SPEED;
             n.ph    += .018 * dt;
             n.pulse += .04  * dt;
             if (n.x < 0 || n.x > W) n.vx *= -1;

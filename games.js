@@ -1,7 +1,365 @@
 // Guard against double-loading
 if (window._gamesLoaded) { throw new Error('games.js already loaded'); }
 window._gamesLoaded = true;
+
+/* =====================================================
+   HUB RUNTIME — shared by clocker.html (Hub 1) and
+   clocker2.html (Hub 2). Loaded via games.js so every
+   hub page gets auth, presence, inactivity, kick/
+   lockdown watchers, daily wipe, announcement banner,
+   and the Firebase disconnect indicator for free.
+
+   Each hub page sets window._HUB_ID before games.js
+   loads so presence tracking labels correctly:
+     clocker.html  → window._HUB_ID = 'hub'
+     clocker2.html → window._HUB_ID = 'hub2'
+   Personal pages leave _HUB_ID undefined, which skips
+   this entire block.
+===================================================== */
+(function () {
+  /* Only runs on authenticated public hubs */
+  if (typeof firebase === 'undefined') return;
+  if (!window._HUB_ID) return;
+
+  /* ── Firebase init ────────────────────────────────── */
+  const FB_CFG = {
+    apiKey:            'AIzaSyBJ4lMm2Nf9u6UeJLHH-Ap9z7lX9wBFEuc',
+    authDomain:        'drive-portal-d7eb1.firebaseapp.com',
+    databaseURL:       'https://drive-portal-d7eb1-default-rtdb.firebaseio.com',
+    projectId:         'drive-portal-d7eb1',
+    storageBucket:     'drive-portal-d7eb1.firebasestorage.app',
+    messagingSenderId: '602318258720',
+    appId:             '1:602318258720:web:e81d1c6ec4c06bd5da3245',
+  };
+  if (!firebase.apps.length) firebase.initializeApp(FB_CFG);
+  const db = firebase.database();
+
+  /* ── Anti-inspect (right-click / devtools shortcuts) ─ */
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('keydown', e => {
+    if (
+      e.keyCode === 123 ||
+      (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
+      (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))
+    ) { e.preventDefault(); return false; }
+  });
+
+  /* ── Auth guard ───────────────────────────────────── */
+  const username = sessionStorage.getItem('clocker_user');
+  if (!username) return;
+
+  /* ── Helpers ──────────────────────────────────────── */
+  function safeKey(u) {
+    return u.toLowerCase().replace(/[.#$[\]]/g, '_');
+  }
+
+  function formatDuration(ms) {
+    const t = Math.floor(ms / 1000);
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+
+  /* ── Remote config (with safe defaults) ──────────── */
+  let INACTIVITY_WARN_MS = 40 * 60 * 1000;
+  let INACTIVITY_OUT_MS  = 45 * 60 * 1000;
+  let WIPE_HOUR          = 15;
+  let WIPE_MINUTE        = 0;
+  let WIPE_ENABLED       = true;
+
+  db.ref('config').get().then(snap => {
+    if (!snap.exists()) return;
+    const c = snap.val();
+    if (c.inactivityWarnMin   > 0) INACTIVITY_WARN_MS = c.inactivityWarnMin   * 60000;
+    if (c.inactivityLogoutMin > 0) INACTIVITY_OUT_MS  = c.inactivityLogoutMin * 60000;
+    if (c.wipeHour    !== undefined) WIPE_HOUR    = c.wipeHour;
+    if (c.wipeMinute  !== undefined) WIPE_MINUTE  = c.wipeMinute;
+    if (c.wipeEnabled !== undefined) WIPE_ENABLED = c.wipeEnabled;
+  }).catch(() => {});
+
+  /* ── State ────────────────────────────────────────── */
+  let lastActivity   = Date.now();
+  let warnToastShown = false;
+  let loggedOut      = false;
+  let _wipeInterval  = null;
+  let _inactInterval = null;
+  let _presInterval  = null;
+  let _lockdownRef   = null;
+  let _userRef       = null;
+
+  /* ── Activity log (debounced, auto-pruned to 200) ── */
+  const MAX_LOG = 200;
+  const _logDebounce = {};
+  async function logActivity(user, event, extra) {
+    if (!user || !event) return;
+    const key = user + ':' + event;
+    const now = Date.now();
+    if (_logDebounce[key] && now - _logDebounce[key] < 2000) return;
+    _logDebounce[key] = now;
+    const entry = {
+      username: user, event,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString(),
+      ...extra,
+    };
+    try {
+      await db.ref('activityLog').push(entry);
+      const snap = await db.ref('activityLog').once('value');
+      const keys = [];
+      snap.forEach(c => keys.push(c.key));
+      if (keys.length > MAX_LOG) {
+        const del = {};
+        keys.slice(0, keys.length - MAX_LOG).forEach(k => { del['activityLog/' + k] = null; });
+        await db.ref('/').update(del);
+      }
+    } catch (e) {}
+  }
+
+  /* ── Presence ─────────────────────────────────────── */
+  const PRESENCE_INTERVAL = 10000; // 10 s heartbeat
+  const presRef = db.ref('presence/' + safeKey(username));
+  presRef.onDisconnect().remove();
+
+  function updatePresence() {
+    if (loggedOut) return;
+    presRef.set({ username, page: window._HUB_ID, heartbeat: Date.now() }).catch(() => {});
+  }
+
+  function startPresence() {
+    updatePresence();
+    _presInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
+  }
+
+  function stopPresence() {
+    if (_presInterval) { clearInterval(_presInterval); _presInterval = null; }
+    presRef.remove().catch(() => {});
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (_presInterval) { clearInterval(_presInterval); _presInterval = null; }
+    } else if (!loggedOut) {
+      updatePresence();
+      if (!_presInterval) _presInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
+    }
+  });
+
+  /* ── Force logout ─────────────────────────────────── */
+  async function forceLogout(reason, redirect, isKicked) {
+    if (loggedOut) return;
+    loggedOut = true;
+    if (_lockdownRef) { try { _lockdownRef.off(); } catch (e) {} _lockdownRef = null; }
+    if (_userRef)     { try { _userRef.off();     } catch (e) {} _userRef     = null; }
+    if (_wipeInterval)  { clearInterval(_wipeInterval);  _wipeInterval  = null; }
+    if (_inactInterval) { clearInterval(_inactInterval); _inactInterval = null; }
+    stopPresence();
+    if (isKicked) sessionStorage.setItem('clocker_kicked', '1');
+    const lt    = sessionStorage.getItem('clocker_login_time');
+    const extra = lt ? { duration: formatDuration(Date.now() - parseInt(lt, 10)) } : {};
+    try { await logActivity(username, reason, extra); } catch (e) {}
+    sessionStorage.removeItem('clocker_user');
+    sessionStorage.removeItem('clocker_login_time');
+    if (redirect) window.location.href = redirect;
+  }
+
+  /* ── Inactivity warning toast ─────────────────────── */
+  const toast = document.createElement('div');
+  toast.id = 'inactivity-toast';
+  toast.innerHTML = `<span>⚠️ You'll be logged out in <strong>5 minutes</strong> due to inactivity.</span><button>Stay</button>`;
+  Object.assign(toast.style, {
+    display: 'none', position: 'fixed', bottom: '24px', left: '50%',
+    transform: 'translateX(-50%)', zIndex: '9999',
+    background: 'rgba(8,15,30,0.97)', border: '1px solid rgba(251,146,60,0.5)',
+    borderRadius: '8px', padding: '14px 20px', color: '#fb923c',
+    fontFamily: "'Outfit', sans-serif", fontSize: '13px',
+    boxShadow: '0 0 24px rgba(251,146,60,0.2)',
+    alignItems: 'center', gap: '16px', whiteSpace: 'nowrap',
+  });
+  const toastBtn = toast.querySelector('button');
+  toastBtn.style.cssText = 'background:rgba(251,146,60,0.12);border:1px solid rgba(251,146,60,0.4);color:#fb923c;padding:6px 14px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;';
+  document.body.appendChild(toast);
+  toastBtn.addEventListener('click', () => {
+    lastActivity = Date.now();
+    toast.style.display = 'none';
+    warnToastShown = false;
+  });
+
+  /* ── Firebase disconnect banner ───────────────────── */
+  db.ref('.info/connected').on('value', snap => {
+    let banner = document.getElementById('firebase-status');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'firebase-status';
+      Object.assign(banner.style, {
+        position: 'fixed', top: '0', left: '0', right: '0', zIndex: '99999',
+        padding: '8px 16px', textAlign: 'center', fontSize: '12px',
+        fontFamily: "'Outfit',sans-serif", letterSpacing: '1px',
+        transition: 'opacity 0.4s', display: 'none',
+      });
+      document.body.appendChild(banner);
+    }
+    if (snap.val() === true) {
+      banner.style.display = 'none';
+    } else {
+      banner.textContent = '⚠ Connection lost — attempting to reconnect…';
+      banner.style.background = 'rgba(239,68,68,0.9)';
+      banner.style.color = '#fff';
+      banner.style.display = 'block';
+    }
+  });
+
+  /* ── Lockdown watcher ─────────────────────────────── */
+  _lockdownRef = db.ref('lockdown/active');
+  _lockdownRef.on('value', snap => {
+    if (!loggedOut && snap.val() === true) forceLogout('lockdown-logout', 'login.html');
+  });
+
+  /* ── Kick watcher ─────────────────────────────────── */
+  _userRef = db.ref('users/' + safeKey(username));
+  _userRef.on('value', snap => {
+    if (loggedOut || !snap.exists()) return;
+    if (snap.val().status === 'kicked') forceLogout('kicked-from-hub', 'login.html', true);
+  });
+
+  /* ── Daily wipe (3 PM default, Firebase-coordinated) ─ */
+  _wipeInterval = setInterval(async () => {
+    if (loggedOut || !WIPE_ENABLED) return;
+    const now = new Date();
+    if (now.getHours() === WIPE_HOUR && now.getMinutes() === WIPE_MINUTE) {
+      const today = now.toLocaleDateString();
+      try {
+        const snap = await db.ref('lastWipeDate').get();
+        if (snap.val() !== today) {
+          await db.ref('lastWipeDate').set(today);
+          await db.ref('presence').remove();
+          await logActivity('SYSTEM', 'daily-wipe');
+          forceLogout('daily-wipe', 'login.html');
+        }
+      } catch (e) {}
+    }
+  }, 30000);
+
+  /* ── Inactivity check (every 10 s) ───────────────── */
+  _inactInterval = setInterval(() => {
+    if (loggedOut) return;
+    const idle = Date.now() - lastActivity;
+    if (idle >= INACTIVITY_OUT_MS) {
+      forceLogout('inactivity-logout', 'login.html');
+    } else if (idle >= INACTIVITY_WARN_MS && !warnToastShown) {
+      warnToastShown = true;
+      toast.style.display = 'flex';
+    }
+  }, 10000);
+
+  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(ev => {
+    window.addEventListener(ev, () => {
+      lastActivity = Date.now();
+      if (warnToastShown) { toast.style.display = 'none'; warnToastShown = false; }
+    }, { passive: true });
+  });
+
+  /* ── Announcement banner ──────────────────────────── */
+  db.ref('config/announcement').on('value', snap => {
+    const ann    = snap.val() || {};
+    const banner = document.getElementById('ann-banner');
+    const track  = document.getElementById('ann-track');
+    if (!banner || !track) return;
+    if (ann.active && ann.text && ann.text.trim()) {
+      track.textContent = ann.text.trim();
+      track.style.animationDuration = Math.round(1200 / (ann.speed || 35)) + 's';
+      banner.classList.add('visible');
+      document.body.classList.add('ann-active');
+    } else {
+      banner.classList.remove('visible');
+      document.body.classList.remove('ann-active');
+    }
+  });
+
+  /* ── beforeunload: log-off + presence cleanup ──────── */
+  window.addEventListener('beforeunload', () => {
+    if (loggedOut) return;
+    const now      = Date.now();
+    const logKey   = window._HUB_ID + '_logout_ts_' + safeKey(username);
+    const lastExit = localStorage.getItem(logKey);
+    // 30-second dedup prevents double-logging on Chromebook lid-close / bfcache restore
+    if (lastExit && now - parseInt(lastExit, 10) < 30000) {
+      fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json',
+        { method: 'DELETE', keepalive: true });
+      return;
+    }
+    localStorage.setItem(logKey, now.toString());
+    const lt      = sessionStorage.getItem('clocker_login_time');
+    const nowDate = new Date();
+    const entry   = {
+      username, event: 'logged-off',
+      date: nowDate.toLocaleDateString(),
+      time: nowDate.toLocaleTimeString(),
+    };
+    if (lt) entry.duration = formatDuration(now - parseInt(lt, 10));
+    fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json',
+      { method: 'DELETE', keepalive: true });
+    fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/activityLog.json',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry), keepalive: true });
+  });
+
+  /* ── Init ─────────────────────────────────────────── */
+  startPresence();
+})();
+
 /* Console locked by security.js — loaded before this script in clocker.html */
+
+/* =====================================================
+   NEW BADGE SYSTEM
+   To mark a game as "New", add  // NEW  at the end of
+   its line in the files array below, like:
+       "clSomeCoolGame",  // NEW
+   The badge disappears automatically after 7 days
+   from the DEPLOY_DATE set below.
+   Update DEPLOY_DATE each time you push new games.
+===================================================== */
+(function(){
+    var DEPLOY_DATE = new Date('2026-05-26').getTime();
+    var SHOW_MS     = 7 * 24 * 60 * 60 * 1000; // 7 days
+    var withinWindow = (Date.now() - DEPLOY_DATE) < SHOW_MS;
+
+    var tagged = new Set();
+    if (withinWindow) {
+        var src = '';
+        if (document.currentScript) {
+            src = document.currentScript.textContent;
+        } else {
+            document.querySelectorAll('script').forEach(function(s){ if (s.textContent.includes('_gamesLoaded')) src = s.textContent; });
+        }
+        if (src) {
+            src.split('\n').forEach(function(line){
+                var m = line.match(/["']([^"']+)["'][,\s]*\/\/\s*NEW\s*$/i);
+                if (m) tagged.add(m[1]);
+            });
+        }
+    }
+    window._newGames = tagged;
+
+    var style = document.createElement('style');
+    style.textContent = [
+        '.new-badge{',
+            'position:absolute;top:5px;right:5px;',
+            'background:linear-gradient(135deg,#22c55e,#16a34a);',
+            'color:#fff;font-size:9px;font-weight:700;',
+            'letter-spacing:1.2px;padding:2px 6px;border-radius:4px;',
+            'text-transform:uppercase;',
+            'box-shadow:0 0 8px rgba(34,197,94,0.5);',
+            'pointer-events:none;z-index:5;',
+            'animation:new-badge-pulse 2.5s ease-in-out infinite;',
+        '}',
+        '@keyframes new-badge-pulse{',
+            '0%,100%{box-shadow:0 0 6px rgba(34,197,94,0.5);}',
+            '50%{box-shadow:0 0 14px rgba(34,197,94,0.85);}',
+        '}',
+        '.game-card.has-new-badge{position:relative;}',
+    ].join('');
+    document.head.appendChild(style);
+})();
 
 /* =====================================================
    EMERGENCY PANIC REDIRECT
@@ -3593,7 +3951,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function buildGearPanel() {
-    // Create gear button
     const gearBtn = document.createElement('button');
     gearBtn.id = 'settings-btn';
     gearBtn.title = 'Settings';
@@ -3615,6 +3972,12 @@ function buildGearPanel() {
     const favsOn     = localStorage.getItem('setting_favs') !== 'off';
     const savedCols  = localStorage.getItem('setting_cols') || 'auto';
     const savedFont  = localStorage.getItem('setting_font') || 'medium';
+    const savedTab   = localStorage.getItem('setting_active_tab') || 'display';
+
+    // Load saved spiderweb tuning
+    const swSpeed = parseFloat(localStorage.getItem('setting_sw_speed') || '1.0');
+    const swNodes = parseInt(localStorage.getItem('setting_sw_nodes')   || '90',  10);
+    const swDist  = parseInt(localStorage.getItem('setting_sw_dist')    || '130', 10);
 
     if (!spiderOn) { const c = document.getElementById('spiderweb'); if(c) c.style.display='none'; }
     if (compactOn) document.body.classList.add('compact-mode');
@@ -3622,56 +3985,137 @@ function buildGearPanel() {
     applyColumns(savedCols);
     if (!favsOn) document.body.classList.add('hide-favs');
     if (clock24On) document.body.classList.add('clock-24h');
+    window._sw_speed = swSpeed;
+    window._sw_nodes = swNodes;
+    window._sw_dist  = swDist;
 
-    const colBtns = ['auto','2','3','4','5'].map(v =>
-        `<button class="col-btn" data-cols="${v}" style="flex:1;min-width:36px;padding:5px 4px;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.2);background:${savedCols===v?'rgba(var(--accent-rgb),.25)':'rgba(var(--accent-rgb),.06)'};color:rgba(255,255,255,${savedCols===v?'.95':'.55'});font-size:12px;cursor:pointer;font-family:Outfit,sans-serif;transition:all .15s;">${v==='auto'?'Auto':v}</button>`
-    ).join('');
-    const fontBtns = [['small','S'],['medium','M'],['large','L']].map(([v,l]) =>
-        `<button class="font-btn" data-font="${v}" style="flex:1;padding:5px 4px;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.2);background:${savedFont===v?'rgba(var(--accent-rgb),.25)':'rgba(var(--accent-rgb),.06)'};color:rgba(255,255,255,${savedFont===v?'.95':'.55'});font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;transition:all .15s;">${l}</button>`
-    ).join('');
+    // Inject tabbed panel styles
+    const tabStyle = document.createElement('style');
+    tabStyle.textContent = `
+    #settings-panel { width: 260px !important; padding: 0 !important; }
+    .sp-header { display:flex; align-items:center; gap:8px; padding:10px 12px 0; }
+    .sp-user { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+    .sp-user span { font-size:11px; color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:Outfit,sans-serif; }
+    .sp-src { font-size:10px; color:rgba(var(--accent-rgb),.7); font-family:Outfit,sans-serif; white-space:nowrap; }
+    .sp-tabs { display:flex; gap:2px; padding:8px 8px 0; }
+    .sp-tab { flex:1; padding:5px 2px; background:rgba(var(--accent-rgb),.05); border:1px solid rgba(var(--accent-rgb),.12); border-bottom:none; border-radius:6px 6px 0 0; color:rgba(255,255,255,.4); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; text-align:center; transition:all .15s; letter-spacing:.3px; }
+    .sp-tab:hover { color:rgba(255,255,255,.7); background:rgba(var(--accent-rgb),.1); }
+    .sp-tab.active { background:rgba(var(--accent-rgb),.18); border-color:rgba(var(--accent-rgb),.3); color:rgba(var(--accent-rgb),1); }
+    .sp-body { padding:10px; border-top:1px solid rgba(var(--accent-rgb),.18); }
+    .sp-pane { display:none; }
+    .sp-pane.active { display:block; }
+    .sp-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+    .sp-row-label { font-size:11px; color:rgba(255,255,255,.65); font-family:Outfit,sans-serif; }
+    .sp-mini-group { display:flex; gap:4px; margin-top:6px; }
+    .sp-mini-btn { flex:1; padding:4px 2px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.5); font-size:11px; cursor:pointer; font-family:Outfit,sans-serif; transition:all .15s; text-align:center; }
+    .sp-mini-btn.active, .sp-mini-btn:hover { background:rgba(var(--accent-rgb),.25); color:rgba(255,255,255,.95); border-color:rgba(var(--accent-rgb),.45); }
+    .sp-divider { height:1px; background:rgba(var(--accent-rgb),.1); margin:8px 0; }
+    .sw-slider-row { margin-bottom:9px; }
+    .sw-slider-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
+    .sw-slider-lbl { font-size:10px; color:rgba(255,255,255,.55); font-family:Outfit,sans-serif; text-transform:uppercase; letter-spacing:.4px; }
+    .sw-slider-val { font-size:10px; color:rgba(var(--accent-rgb),.9); font-family:Outfit,sans-serif; min-width:28px; text-align:right; }
+    .sw-range { -webkit-appearance:none; appearance:none; width:100%; height:3px; border-radius:2px; background:rgba(var(--accent-rgb),.15); outline:none; cursor:pointer; }
+    .sw-range::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:rgba(var(--accent-rgb),1); border:none; cursor:pointer; }
+    .sw-range::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:rgba(var(--accent-rgb),1); border:none; cursor:pointer; }
+    .sw-reset { width:100%; margin-top:8px; padding:5px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.45); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; transition:all .15s; letter-spacing:.3px; }
+    .sw-reset:hover { background:rgba(var(--accent-rgb),.15); color:rgba(255,255,255,.8); }
+    `;
+    document.head.appendChild(tabStyle);
 
     panel.innerHTML = `
-        <div class="settings-section">
-            <div class="settings-label">Signed in as</div>
-            <div class="settings-value" style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:18px;">&#x1F464;</span>
+        <div class="sp-header">
+            <div class="sp-user">
+                <span style="font-size:14px;">&#x1F464;</span>
                 <span id="gear-username">${username}</span>
             </div>
+            <div class="sp-src" id="gear-source">${gameSource}</div>
         </div>
-        <div class="settings-section">
-            <div class="settings-label">Game Source</div>
-            <div class="settings-value" id="gear-source">${gameSource}</div>
+        <div class="sp-tabs">
+            <button class="sp-tab${savedTab==='display'?' active':''}" data-tab="display">Display</button>
+            <button class="sp-tab${savedTab==='layout'?' active':''}" data-tab="layout">Layout</button>
+            <button class="sp-tab${savedTab==='theme'?' active':''}" data-tab="theme">Theme</button>
+            <button class="sp-tab${savedTab==='web'?' active':''}" data-tab="web">Web</button>
         </div>
-        <div class="settings-section">
-            <div class="settings-label" style="margin-bottom:8px;">Display</div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">&#x2728; Spiderweb background</span>
-                <label class="toggle-switch"><input type="checkbox" id="toggle-spiderweb" ${spiderOn ? 'checked' : ''}><span class="toggle-track"></span></label>
+        <div class="sp-body">
+
+            <!-- DISPLAY TAB -->
+            <div class="sp-pane${savedTab==='display'?' active':''}" data-pane="display">
+                <div class="sp-row">
+                    <span class="sp-row-label">&#x2728; Spiderweb</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-spiderweb" ${spiderOn ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="sp-row">
+                    <span class="sp-row-label">&#x26A1; Compact mode</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-compact" ${compactOn ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="sp-row">
+                    <span class="sp-row-label">&#x2B50; Favorites section</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-favs" ${favsOn ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="sp-row">
+                    <span class="sp-row-label">&#x1F550; 24-hour clock</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-clock24" ${clock24On ? 'checked' : ''}>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
             </div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">&#x26A1; Compact mode</span>
-                <label class="toggle-switch"><input type="checkbox" id="toggle-compact" ${compactOn ? 'checked' : ''}><span class="toggle-track"></span></label>
+
+            <!-- LAYOUT TAB -->
+            <div class="sp-pane${savedTab==='layout'?' active':''}" data-pane="layout">
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Card Columns</div>
+                <div class="sp-mini-group">
+                    ${['auto','2','3','4','5'].map(v => `
+                    <button class="sp-mini-btn col-btn${savedCols===v?' active':''}" data-cols="${v}">${v==='auto'?'A':v}</button>`).join('')}
+                </div>
+                <div class="sp-divider"></div>
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Text Size</div>
+                <div class="sp-mini-group">
+                    ${[['small','S'],['medium','M'],['large','L']].map(([v,l]) => `
+                    <button class="sp-mini-btn font-btn${savedFont===v?' active':''}" data-font="${v}">${l}</button>`).join('')}
+                </div>
             </div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">&#x2B50; Show favorites section</span>
-                <label class="toggle-switch"><input type="checkbox" id="toggle-favs" ${favsOn ? 'checked' : ''}><span class="toggle-track"></span></label>
+
+            <!-- THEME TAB -->
+            <div class="sp-pane${savedTab==='theme'?' active':''}" data-pane="theme">
+                <div id="theme-switcher-wrap"></div>
             </div>
-            <div class="settings-toggle-row">
-                <span class="settings-toggle-label">&#x1F550; 24-hour clock</span>
-                <label class="toggle-switch"><input type="checkbox" id="toggle-clock24" ${clock24On ? 'checked' : ''}><span class="toggle-track"></span></label>
+
+            <!-- WEB TAB -->
+            <div class="sp-pane${savedTab==='web'?' active':''}" data-pane="web">
+                <div class="sw-slider-row">
+                    <div class="sw-slider-top">
+                        <span class="sw-slider-lbl">⚡ Speed</span>
+                        <span class="sw-slider-val" id="sw-speed-val">${swSpeed.toFixed(1)}x</span>
+                    </div>
+                    <input type="range" class="sw-range" id="sw-speed" min="0.1" max="3" step="0.1" value="${swSpeed}">
+                </div>
+                <div class="sw-slider-row">
+                    <div class="sw-slider-top">
+                        <span class="sw-slider-lbl">🔵 Nodes</span>
+                        <span class="sw-slider-val" id="sw-nodes-val">${swNodes}</span>
+                    </div>
+                    <input type="range" class="sw-range" id="sw-nodes" min="20" max="200" step="5" value="${swNodes}">
+                </div>
+                <div class="sw-slider-row">
+                    <div class="sw-slider-top">
+                        <span class="sw-slider-lbl">🕸 Connect</span>
+                        <span class="sw-slider-val" id="sw-dist-val">${swDist}px</span>
+                    </div>
+                    <input type="range" class="sw-range" id="sw-dist" min="60" max="300" step="10" value="${swDist}">
+                </div>
+                <button class="sw-reset" id="sw-reset">Reset defaults</button>
             </div>
-        </div>
-        <div class="settings-section">
-            <div class="settings-label" style="margin-bottom:8px;">Card columns</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">${colBtns}</div>
-        </div>
-        <div class="settings-section">
-            <div class="settings-label" style="margin-bottom:8px;">Text size</div>
-            <div style="display:flex;gap:6px;">${fontBtns}</div>
-        </div>
-        <div class="settings-section" style="padding-bottom:4px;">
-            <div class="settings-label" style="margin-bottom:10px;">Theme</div>
-            <div id="theme-switcher-wrap"></div>
+
         </div>
     `;
     document.body.appendChild(panel);
@@ -3679,6 +4123,58 @@ function buildGearPanel() {
     if (typeof buildThemeButtons === 'function') {
         buildThemeButtons(panel.querySelector('#theme-switcher-wrap'));
     }
+
+    // Spiderweb live controls
+    (function() {
+        function wire() {
+            var speedEl = panel.querySelector('#sw-speed');
+            var nodesEl = panel.querySelector('#sw-nodes');
+            var distEl  = panel.querySelector('#sw-dist');
+            if (!speedEl) return;
+
+            speedEl.addEventListener('input', function() {
+                var v = parseFloat(this.value);
+                window._sw_speed = v;
+                localStorage.setItem('setting_sw_speed', v);
+                panel.querySelector('#sw-speed-val').textContent = v.toFixed(1) + 'x';
+            });
+            nodesEl.addEventListener('input', function() {
+                var v = parseInt(this.value, 10);
+                window._sw_nodes = v;
+                localStorage.setItem('setting_sw_nodes', v);
+                panel.querySelector('#sw-nodes-val').textContent = v;
+                if (typeof window._sw_rebuild === 'function') window._sw_rebuild();
+            });
+            distEl.addEventListener('input', function() {
+                var v = parseInt(this.value, 10);
+                window._sw_dist = v;
+                localStorage.setItem('setting_sw_dist', v);
+                panel.querySelector('#sw-dist-val').textContent = v + 'px';
+            });
+            panel.querySelector('#sw-reset').addEventListener('click', function() {
+                window._sw_speed = 1.0; window._sw_nodes = 90; window._sw_dist = 130;
+                localStorage.removeItem('setting_sw_speed');
+                localStorage.removeItem('setting_sw_nodes');
+                localStorage.removeItem('setting_sw_dist');
+                speedEl.value = 1.0; nodesEl.value = 90; distEl.value = 130;
+                panel.querySelector('#sw-speed-val').textContent = '1.0x';
+                panel.querySelector('#sw-nodes-val').textContent = '90';
+                panel.querySelector('#sw-dist-val').textContent  = '130px';
+                if (typeof window._sw_rebuild === 'function') window._sw_rebuild();
+            });
+        }
+        wire();
+    })();
+
+    // Tab switching
+    panel.querySelectorAll('.sp-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const t = this.dataset.tab;
+            localStorage.setItem('setting_active_tab', t);
+            panel.querySelectorAll('.sp-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            panel.querySelectorAll('.sp-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === t));
+        });
+    });
 
     panel.querySelector('#toggle-spiderweb').addEventListener('change', function() {
         const canvas = document.getElementById('spiderweb');
@@ -3702,11 +4198,7 @@ function buildGearPanel() {
             const v = this.dataset.cols;
             localStorage.setItem('setting_cols', v);
             applyColumns(v);
-            panel.querySelectorAll('.col-btn').forEach(b => {
-                const a = b.dataset.cols === v;
-                b.style.background = a ? 'rgba(var(--accent-rgb),.25)' : 'rgba(var(--accent-rgb),.06)';
-                b.style.color = a ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.55)';
-            });
+            panel.querySelectorAll('.col-btn').forEach(b => b.classList.toggle('active', b.dataset.cols === v));
         });
     });
     panel.querySelectorAll('.font-btn').forEach(btn => {
@@ -3714,11 +4206,7 @@ function buildGearPanel() {
             const v = this.dataset.font;
             localStorage.setItem('setting_font', v);
             applyFontSize(v);
-            panel.querySelectorAll('.font-btn').forEach(b => {
-                const a = b.dataset.font === v;
-                b.style.background = a ? 'rgba(var(--accent-rgb),.25)' : 'rgba(var(--accent-rgb),.06)';
-                b.style.color = a ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.55)';
-            });
+            panel.querySelectorAll('.font-btn').forEach(b => b.classList.toggle('active', b.dataset.font === v));
         });
     });
 
@@ -4089,13 +4577,19 @@ function transformButtonToCard(btn) {
 
     const thumb = makeCSSThumb(displayName);
 
-
-
-
     const nameSpan = document.createElement('span');
     nameSpan.className = 'game-card-name';
     nameSpan.textContent = displayName;
     nameSpan.dataset.fullname = displayName;
+
+    // ── NEW badge — shown if file is in window._newGames set ──
+    if (window._newGames && window._newGames.has(file)) {
+        const badge = document.createElement('span');
+        badge.className = 'new-badge';
+        badge.textContent = 'NEW';
+        card.appendChild(badge);
+        card.classList.add('has-new-badge');
+    }
 
     // Star button
     const star = document.createElement('button');
