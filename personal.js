@@ -1,3 +1,262 @@
+/* ============================================================
+   personal.js — Combined bundle for personal hub pages
+   Includes: security.js + spiderweb.js + personal-games2.js
+   Edit games: find 'let files = [' and add/remove entries.
+   Edit spiderweb: find '=== spiderweb.js ==='
+   After editing, re-minify with: terser personal.js -o personal.min.js --compress --mangle
+============================================================ */
+
+/* === security.js === */
+/* =====================================================
+   NUCLEAR CONSOLE LOCK
+   Loaded as the very first script in every page.
+   Object.defineProperty means no injected script can
+   restore the locked console methods.
+
+   NOTE: console.error and console.warn are intentionally
+   NOT locked. Firebase SDK uses them internally to report
+   connection errors. Locking them causes silent failures
+   that are impossible to diagnose. All user-visible
+   methods (log, info, debug, dir, table, etc.) are
+   still fully blocked to prevent casual snooping.
+===================================================== */
+(function(){
+  var noop = function(){};
+  var methods = [
+    'log','info','debug','dir','dirxml','table',
+    'trace','group','groupCollapsed','groupEnd','time','timeEnd',
+    'timeLog','timeStamp','profile','profileEnd','count','countReset',
+    'assert','clear'
+  ];
+  methods.forEach(function(m){
+    try {
+      Object.defineProperty(console, m, {
+        get: function(){ return noop; },
+        set: function(){},
+        configurable: false,
+        enumerable: false
+      });
+    } catch(e){ /* intentional: best-effort cleanup */ }
+  });
+  /* Do NOT call Object.freeze(console) — that also locks error/warn
+     and silences Firebase's own internal connection error reporting. */
+})();
+
+/* === spiderweb.js === */
+(function(){
+    const canvas = document.getElementById('spiderweb');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    let W = 0, H = 0;
+    let nodes = [], gridCols = 1, gridRows = 1, grid = [];
+    let mouse = { x: -9999, y: -9999 };
+
+    // These can be overridden by the settings panel via window globals
+    function getCfg() {
+        return {
+            N:     window._sw_nodes != null ? window._sw_nodes : 90,
+            DIST:  window._sw_dist  != null ? window._sw_dist  : 130,
+            SPEED: window._sw_speed != null ? window._sw_speed : 1.0,
+        };
+    }
+
+    const MDIST = 160;
+    const CELL  = 130;
+    const FPS   = 60;
+    const FRAME = 1000 / FPS;
+    let lastT   = 0;
+    let rafId   = null;
+    let hue     = 0;   // global hue that slowly cycles
+
+    // Allow settings panel to trigger a node rebuild
+    window._sw_rebuild = function() { initNodes(); };
+
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        initNodes();
+    }
+
+    function initNodes() {
+        const { N } = getCfg();
+        const cols  = Math.max(1, Math.ceil(Math.sqrt(N * W / H)));
+        const rows  = Math.max(1, Math.ceil(N / cols));
+        const cellW = W / cols, cellH = H / rows;
+        nodes = [];
+        for (let r = 0; r < rows; r++)
+            for (let c = 0; c < cols && nodes.length < N; c++)
+                nodes.push({
+                    x:      (c + Math.random()) * cellW,
+                    y:      (r + Math.random()) * cellH,
+                    vx:     (Math.random() - .5) * .7,
+                    vy:     (Math.random() - .5) * .7,
+                    pr:     Math.random() * 1.8 + .6,
+                    ph:     Math.random() * Math.PI * 2,
+                    pulse:  Math.random() * Math.PI * 2,
+                    hueOff: Math.random() * 60 - 30,   // each node shifts hue ±30°
+                });
+        buildGrid();
+    }
+
+    function buildGrid() {
+        gridCols = Math.max(1, Math.ceil(W / CELL));
+        gridRows = Math.max(1, Math.ceil(H / CELL));
+        grid = Array.from({ length: gridCols * gridRows }, () => []);
+        nodes.forEach((n, i) => {
+            const gx = Math.min((n.x / CELL) | 0, gridCols - 1);
+            const gy = Math.min((n.y / CELL) | 0, gridRows - 1);
+            const idx = gy * gridCols + gx;
+            if (grid[idx]) {  // Safety check
+                grid[idx].push(i);
+            }
+        });
+    }
+
+    function neighbors(n) {
+        const gx = Math.min((n.x / CELL) | 0, gridCols - 1);
+        const gy = Math.min((n.y / CELL) | 0, gridRows - 1);
+        const out = [];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const nx = gx + dx, ny = gy + dy;
+            if (nx < 0 || ny < 0 || nx >= gridCols || ny >= gridRows) continue;
+            const idx = ny * gridCols + nx;
+            if (grid[idx]) {  // Safety check
+                for (const i of grid[idx]) out.push(i);
+            }
+        }
+        return out;
+    }
+
+    function hslStr(h, s, l, a) {
+        return 'hsla(' + (h | 0) + ',' + s + '%,' + l + '%,' + a.toFixed(3) + ')';
+    }
+
+    function draw(ts) {
+        rafId = requestAnimationFrame(draw);
+        if (ts - lastT < FRAME) return;
+        const dt = Math.min((ts - lastT) / 16, 3);
+        lastT = ts;
+        if (!W || !H) return;
+
+        // Slowly cycle the global hue
+        hue = (hue + 0.12 * dt) % 360;
+
+        ctx.clearRect(0, 0, W, H);
+
+        const { DIST, SPEED } = getCfg();
+
+        // Move nodes
+        for (const n of nodes) {
+            n.x += n.vx * dt * SPEED;
+            n.y += n.vy * dt * SPEED;
+            n.ph    += .018 * dt;
+            n.pulse += .04  * dt;
+            if (n.x < 0 || n.x > W) n.vx *= -1;
+            if (n.y < 0 || n.y > H) n.vy *= -1;
+            const md = Math.hypot(n.x - mouse.x, n.y - mouse.y);
+            if (md < MDIST && md > 1) {
+                const f = (MDIST - md) / MDIST * .6;
+                n.x += (n.x - mouse.x) / md * f * dt;
+                n.y += (n.y - mouse.y) / md * f * dt;
+            }
+        }
+        buildGrid();
+
+        const DIST2 = DIST * DIST;
+
+        // Draw lines — gradient between each pair's hues
+        for (let ai = 0; ai < nodes.length; ai++) {
+            const a = nodes[ai];
+            for (const bi of neighbors(a)) {
+                if (bi <= ai) continue;
+                const b = nodes[bi];
+                const dx = a.x - b.x, dy = a.y - b.y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 >= DIST2) continue;
+                const d   = Math.sqrt(d2);
+                const t   = 1 - d / DIST;
+
+                const mda = Math.hypot(a.x - mouse.x, a.y - mouse.y);
+                const mdb = Math.hypot(b.x - mouse.x, b.y - mouse.y);
+                const mi  = Math.max(0, 1 - Math.min(mda, mdb) / MDIST);
+
+                const baseAlpha = t * .38 * (.18 + mi * .6);
+                const lineWidth = .4 + t * 1.4 + mi * 1.4;
+
+                const ha = (hue + a.hueOff + 200) % 360;
+                const hb = (hue + b.hueOff + 200) % 360;
+
+                // Color gradient from node A to node B
+                const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+                grad.addColorStop(0, hslStr(ha, 90, 70, baseAlpha));
+                grad.addColorStop(1, hslStr(hb, 90, 70, baseAlpha));
+
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.strokeStyle = grad;
+                ctx.lineWidth   = lineWidth;
+                ctx.stroke();
+            }
+        }
+
+        // Draw nodes — three-layer glow
+        for (const n of nodes) {
+            const mi    = Math.max(0, 1 - Math.hypot(n.x - mouse.x, n.y - mouse.y) / MDIST);
+            const p     = Math.sin(n.ph)    * .5 + .5;
+            const pulse = Math.sin(n.pulse) * .5 + .5;
+            const nh    = (hue + n.hueOff + 200) % 360;
+            const r     = n.pr * (1 + p * .3 + mi * .8);
+
+            // Outer halo — only brightens near mouse
+            if (mi > .05) {
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r * 3.5, 0, Math.PI * 2);
+                ctx.fillStyle = hslStr(nh, 100, 65, mi * .09);
+                ctx.fill();
+            }
+
+            // Mid glow
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r * 1.9, 0, Math.PI * 2);
+            ctx.fillStyle = hslStr(nh, 90, 65, .08 + pulse * .06 + mi * .14);
+            ctx.fill();
+
+            // Core dot
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = hslStr(nh, 95, 80, .45 + p * .28 + mi * .3);
+            ctx.fill();
+        }
+
+
+    }
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(resize, 200);
+    });
+    window.addEventListener('mousemove', e => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    }, { passive: true });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        } else {
+            lastT = 0;
+            rafId = requestAnimationFrame(draw);
+        }
+    });
+
+    resize();
+    rafId = requestAnimationFrame(draw);
+})();
+
+/* === personal-games2.js (personal runtime + game list + UI) === */
 // Guard against double-loading
 if (window._gamesLoaded) { throw new Error('games.js already loaded'); }
 window._gamesLoaded = true;
@@ -9,7 +268,6 @@ window._gamesLoaded = true;
 
    Handles:
      1. Game-source toggle (Hub vs CDN via Firebase flag)
-     2. Announcement banner
    No auth, no tracking — personal hub is private.
 ===================================================== */
 (function () {
@@ -37,23 +295,6 @@ window._gamesLoaded = true;
       window.GAME_BASE_URL = CDN_URL;
     }
   }).catch(function () {});
-
-  /* ── Announcement banner ──────────────────────────── */
-  db.ref('config/announcement').on('value', function (snap) {
-    var ann    = snap.val() || {};
-    var banner = document.getElementById('ann-banner');
-    var track  = document.getElementById('ann-track');
-    if (!banner || !track) return;
-    if (ann.active && ann.text && ann.text.trim()) {
-      track.textContent = ann.text.trim();
-      track.style.animationDuration = Math.round(1200 / (ann.speed || 35)) + 's';
-      banner.classList.add('visible');
-      document.body.classList.add('ann-active');
-    } else {
-      banner.classList.remove('visible');
-      document.body.classList.remove('ann-active');
-    }
-  });
 })();
 
 
@@ -3101,6 +3342,8 @@ function toggleFav(file) {
 
 function buildGameClickHandler(file) {
   return () => {
+    if (window._gameLoading) return;
+    window._gameLoading = true;
     const name = file.includes('.') && file.lastIndexOf('.') > 0 ? file : file + '.html';
     // Launch animation overlay
     let loader = document.getElementById('game-loader');
@@ -3113,6 +3356,7 @@ function buildGameClickHandler(file) {
     loader.style.display = 'flex';
     requestAnimationFrame(() => requestAnimationFrame(() => loader.classList.add('visible')));
     const hide = (msg) => {
+      window._gameLoading = false;
       loader.classList.remove('visible');
       setTimeout(() => {
         loader.style.display = 'none';
@@ -3134,22 +3378,13 @@ function buildGameClickHandler(file) {
         // Rewrite all cdn.jsdelivr.net references to go through our Cloudflare Worker proxy
         text = text.replace(/https?:\/\/cdn\.jsdelivr\.net/g, proxy);
 
-        const isUnity = /UnityLoader|unity\.js|UnityProgress|\.unityweb|\.data\.gz/i.test(text);
         const w = window.open('about:blank', '_blank');
-        if (!w) return;
-        if (isUnity) {
-          if (!/<base\s/i.test(text)) {
-            text = text.replace(/(<head[^>]*>)/i, `$1<base href="${base}">`);
-            if (!/<head/i.test(text)) text = `<base href="${base}">` + text;
-          }
-          w.document.open(); w.document.write(text); w.document.close();
-        } else {
-          if (!/<base\s/i.test(text)) {
-            text = text.replace(/(<head[^>]*>)/i, `$1<base href="${base}">`);
-            if (!/<head/i.test(text)) text = `<base href="${base}">` + text;
-          }
-          w.document.open(); w.document.write(text); w.document.close();
+        if (!w) { hide('Popup was blocked — please allow popups for this site and try again.'); return; }
+        if (!/<base\s/i.test(text)) {
+          text = text.replace(/(<head[^>]*>)/i, `$1<base href="${base}">`);
+          if (!/<head/i.test(text)) text = `<base href="${base}">` + text;
         }
+        w.document.open(); w.document.write(text); w.document.close();
       })
       .catch(e => { clearTimeout(tid); hide(e.name === 'AbortError' ? 'Game took too long to load — try again.' : 'Failed to load game. Check your connection.'); });
   };
@@ -3722,6 +3957,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── Build Burger Button (sidebar toggle) ──
+    (function() {
+        const burgerBtn = document.createElement('button');
+        burgerBtn.id = 'burger-btn';
+        burgerBtn.title = 'Toggle sidebar';
+        burgerBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="3" y1="6"  x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>`;
+        document.body.appendChild(burgerBtn);
+        // Inline styles as guaranteed fallback — CSS var may not be resolved yet
+        burgerBtn.style.cssText = 'position:fixed;top:14px;left:13px;z-index:10001;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(8,15,30,0.94);border:1px solid rgba(56,189,248,0.25);color:rgba(56,189,248,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+
+        const sidebar = document.getElementById('sidebar');
+        const STORAGE_KEY = 'sidebar_collapsed';
+
+        function setSidebar(collapsed) {
+            if (collapsed) {
+                sidebar.classList.add('collapsed');
+                burgerBtn.classList.add('open');
+            } else {
+                sidebar.classList.remove('collapsed');
+                burgerBtn.classList.remove('open');
+            }
+            try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch(e) {}
+        }
+
+        // Restore saved state
+        try {
+            if (localStorage.getItem(STORAGE_KEY) === '1') setSidebar(true);
+            else setSidebar(false);
+        } catch(e) { setSidebar(false); }
+
+        burgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setSidebar(!sidebar.classList.contains('collapsed'));
+        });
+    })();
+
     // ── Build Gear Settings Panel ──
     buildGearPanel();
 });
@@ -4146,6 +4421,7 @@ setInterval(updateClock,1000);
         #back-to-top::before { background: radial-gradient(circle at center bottom,rgba(var(--accent-rgb),.15) 0%,transparent 70%) !important; }
         #progress-bar { background: linear-gradient(90deg,var(--accent-blue),rgba(var(--accent-rgb),.5)) !important; box-shadow: 0 0 8px rgba(var(--accent-rgb),.6) !important; }
         #settings-btn { border-color: rgba(var(--accent-rgb),.25) !important; color: rgba(var(--accent-rgb),.8) !important; }
+        #burger-btn { border-color: rgba(var(--accent-rgb),.25) !important; color: rgba(var(--accent-rgb),.8) !important; }
         #settings-panel { border-color: rgba(var(--accent-rgb),.2) !important; }
         #search-dropdown { border-color: rgba(var(--accent-rgb),.25) !important; }
         .search-wrap { border-color: rgba(var(--accent-rgb),.25) !important; }
@@ -4166,6 +4442,18 @@ setInterval(updateClock,1000);
         body.hide-favs #section-FAVS { display: none !important; }
         /* ── Settings: hide AM/PM when 24h clock is on ── */
         body.clock-24h .clock-ampm { display: none !important; }
+        /* ── Burger button — always fixed top-left ── */
+        #burger-btn { position:fixed; top:14px; left:13px; z-index:10001; width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:var(--sidebar-bg); border:1px solid rgba(var(--accent-rgb),.25); color:rgba(var(--accent-rgb),.8); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); box-shadow:0 4px 16px rgba(0,0,0,.4); transition:border-color .2s ease, color .2s ease, box-shadow .2s ease; }
+        #burger-btn:hover { border-color:rgba(var(--accent-rgb),.6); color:var(--accent-blue); box-shadow:0 0 0 1px rgba(var(--accent-rgb),.2),0 4px 20px rgba(var(--accent-rgb),.15); }
+        #burger-btn svg line { transition:transform .25s ease, opacity .25s ease; transform-origin:center; }
+        #burger-btn.open svg line:nth-child(1) { transform:translateY(6px) rotate(45deg); }
+        #burger-btn.open svg line:nth-child(2) { opacity:0; }
+        #burger-btn.open svg line:nth-child(3) { transform:translateY(-6px) rotate(-45deg); }
+        /* ── Sidebar collapse ── */
+        .sidebar { transition: width .25s ease, padding .25s ease; }
+        .sidebar.collapsed { width:0 !important; padding-left:0 !important; padding-right:0 !important; border-right-color:transparent !important; }
+        /* Push sidebar down so burger doesn't overlap the fav star */
+        .sidebar { padding-top:66px !important; }
     `;
     document.head.appendChild(staticStyle);
 
@@ -4192,7 +4480,7 @@ setInterval(updateClock,1000);
     }
 
     /* ── Build theme buttons into the gear settings panel ── */
-    function buildThemeButtons(container) {
+    function _buildThemeButtonsBase(container) {
         if (!container) return;
         container.innerHTML = '';
         const swatchColors = {
@@ -4245,10 +4533,9 @@ setInterval(updateClock,1000);
         }
     }
 
-    /* ── Extend buildThemeButtons to include colour wheel pill ── */
-    const _origBuildThemeButtons = buildThemeButtons;
-    buildThemeButtons = function(container) {
-        _origBuildThemeButtons(container);
+    /* ── Build theme buttons with colour wheel pill ── */
+    function buildThemeButtons(container) {
+        _buildThemeButtonsBase(container);
 
         // Full-width custom color pill — sits below the swatch row
         const savedCustom = localStorage.getItem('siteThemeCustomHex') || '#38bdf8';
@@ -4298,7 +4585,7 @@ setInterval(updateClock,1000);
         // Hover effect
         pill.addEventListener('mouseenter', () => { pill.style.borderColor = 'rgba(255,255,255,0.35)'; pill.style.background = 'linear-gradient(90deg,rgba(255,255,255,0.10),rgba(255,255,255,0.05))'; });
         pill.addEventListener('mouseleave', () => { pill.style.borderColor = 'rgba(255,255,255,0.15)'; pill.style.background = 'linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))'; });
-    };
+    }
 
     /* ── Expose globally so buildGearPanel() can call it ── */
     window.buildThemeButtons = buildThemeButtons;
@@ -4324,25 +4611,48 @@ setInterval(updateClock,1000);
 ===================================================== */
 document.querySelectorAll('.quick-tags code').forEach(tag => {
     tag.addEventListener('click', () => {
-        const query = tag.textContent.trim().toLowerCase().replace(/\s+/g, '');
-        const allCards = document.querySelectorAll('.game-card');
-        let bestCard = null;
-        for (const card of allCards) {
-            const name = (card.dataset.name || '').replace(/\s+/g, '');
-            if (name.includes(query)) {
-                bestCard = card;
-                break;
+        const rawQuery = tag.textContent.trim();
+        const query = rawQuery.toLowerCase().replace(/\s+/g, '');
+
+        function findBestCard(cards) {
+            let exactMatch = null, partialMatch = null;
+            for (const card of cards) {
+                const name = (card.dataset.name || '').toLowerCase().replace(/\s+/g, '');
+                if (name === query) { exactMatch = card; break; }
+                if (!partialMatch && name.includes(query)) partialMatch = card;
             }
+            return exactMatch || partialMatch;
         }
+
+        const bestCard = findBestCard(document.querySelectorAll('.game-card'));
         if (bestCard) {
             bestCard.click();
         } else {
             const input = document.getElementById('searchInput');
-            if (input) {
-                input.value = tag.textContent;
-                input.dispatchEvent(new Event('input'));
-                input.focus();
-            }
+            if (!input) return;
+            input.value = rawQuery;
+            input.dispatchEvent(new Event('input'));
+            input.focus();
+            let attempts = 0;
+            const poll = setInterval(() => {
+                attempts++;
+                const cards = document.querySelectorAll('.game-card');
+                let exactMatch = null;
+                for (const card of cards) {
+                    const name = (card.dataset.name || '').toLowerCase().replace(/\s+/g, '');
+                    if (name === query) { exactMatch = card; break; }
+                }
+                if (exactMatch) {
+                    clearInterval(poll);
+                    input.value = '';
+                    input.dispatchEvent(new Event('input'));
+                    exactMatch.click();
+                } else if (attempts > 20) {
+                    clearInterval(poll);
+                    const partial = findBestCard(document.querySelectorAll('.game-card'));
+                    if (partial) { input.value = ''; input.dispatchEvent(new Event('input')); partial.click(); }
+                }
+            }, 50);
         }
     });
 });

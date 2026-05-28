@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+  <!-- Performance: resource hints -->
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://drive-portal-d7eb1-default-rtdb.firebaseio.com">
+  <link rel="preload" href="styles.css" as="style">
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-CBRC0YZ54S"></script>
   <script>
@@ -11,12 +17,14 @@
   </script>
 
   <meta charset="UTF-8">
+  <meta name="theme-color" content="#060d1a">
+  <style>#spiderweb{will-change:transform;transform:translateZ(0);}</style>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Home - Google Drive</title>
 
   <!-- Console protection — must be first -->
-  <script src="security.js"></script>
-
+  
   <!-- Hub identity (read by games.js runtime) -->
   <script>
     window._HUB_ID    = 'hub';
@@ -76,6 +84,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="stylesheet" href="styles.css">
+
+  <!-- Service Worker for faster repeat loads -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').catch(function(){});
+      });
+    }
+  </script>
 </head>
 <body>
 
@@ -137,21 +154,7 @@
 </div>
 
 <button id="back-to-top">↑</button>
-<div id="theme-switcher"></div>
-
-<!-- Announcement banner (controlled by games.js runtime via Firebase) -->
-<style>
-#ann-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:linear-gradient(90deg,rgba(8,15,30,0.97),rgba(12,22,45,0.97));border-bottom:1px solid rgba(56,189,248,0.2);padding:7px 0;overflow:hidden;box-shadow:0 2px 16px rgba(56,189,248,0.08);}
-#ann-banner.visible{display:block;}
-#ann-track{display:inline-block;white-space:nowrap;padding-left:100vw;font-family:'Outfit',sans-serif;font-size:13px;color:rgba(56,189,248,0.9);letter-spacing:0.3px;animation:ann-slide 30s linear infinite;}
-#ann-track::before{content:'📢  ';}
-#ann-track::after{content:'   ·   ·   ·';opacity:0.3;}
-@keyframes ann-slide{0%{transform:translateX(0);}100%{transform:translateX(-100%);}}
-body.ann-active #progress-bar{top:34px;}
-body.ann-active .sidebar{padding-top:48px;}
-body.ann-active .main-content{padding-top:74px;}
-</style>
-<div id="ann-banner"><div id="ann-track"></div></div>
+<div id="theme-switcher"></div></div>
 
 <!-- Firebase SDK (must precede games.js) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -175,8 +178,7 @@ body.ann-active .main-content{padding-top:74px;}
 })();
 </script>
 
-<script src="spiderweb.js" defer></script>
-<script src="games.js" defer></script>
+<script src="hub.js" defer></script>
 
 </body>
 </html>

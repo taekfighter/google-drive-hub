@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+  <!-- Performance: resource hints -->
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://drive-portal-d7eb1-default-rtdb.firebaseio.com">
+  <link rel="preload" href="styles.css" as="style">
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-CBRC0YZ54S"></script>
 <script>
@@ -10,6 +16,9 @@
   gtag("config", "G-CBRC0YZ54S");
 </script>
 <meta charset="UTF-8">
+  <meta name="theme-color" content="#060d1a">
+  <style>#spiderweb{will-change:transform;transform:translateZ(0);}</style>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Home - Google Drive</title>
 <script src="security.js"></script>
@@ -254,6 +263,15 @@ h1 {
 body.fading-out { animation: fadeOut 0.45s ease forwards; }
 @keyframes fadeOut { to { opacity: 0; } }
 </style>
+
+  <!-- Service Worker for faster repeat loads -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').catch(function(){});
+      });
+    }
+  </script>
 </head>
 <body>
 
@@ -1299,20 +1317,31 @@ function checkCaps(e, warnId) {
   }
 
   // ── Check 1: Is clocker.html or clocker2.html already open? ──
+  // We ping the hub tab first. If it doesn't respond within 500ms the key
+  // is stale (leftover from a crash/power-off) and we clear it silently.
   var hubTabKey = 'gd_hub_tab';
-  if (localStorage.getItem(hubTabKey)) {
-    // Ping the hub tab to see if it's actually alive
-    var HUB_PING = 'gd_hub_ping';
-    var hubVal   = localStorage.getItem(hubTabKey);
-    localStorage.setItem(HUB_PING, hubVal + ':' + Date.now());
+  var hubVal    = localStorage.getItem(hubTabKey);
+  if (hubVal) {
+    var HUB_PING   = 'gd_hub_ping';
+    var hubPingKey = hubVal + ':' + Date.now();
+    localStorage.setItem(HUB_PING, hubPingKey);
+    var hubAlive = false;
+    var hubPongHandler = function(e) {
+      if (e.key === hubTabKey && e.newValue === hubVal) hubAlive = true;
+    };
+    window.addEventListener('storage', hubPongHandler);
     setTimeout(function() {
-      if (localStorage.getItem(hubTabKey)) {
+      window.removeEventListener('storage', hubPongHandler);
+      if (hubAlive) {
         showBlockedScreen(
           'Hub Already Open',
           'The Game Hub is already open<br>in another tab. Please use that tab,<br>or close it before logging in again.'
         );
+      } else {
+        // Key is stale — clean it up so login proceeds normally
+        localStorage.removeItem(hubTabKey);
       }
-    }, 450);
+    }, 500);
   }
 
   // ── Check 2: Is another login tab already open? ──
@@ -1322,22 +1351,30 @@ function checkCaps(e, warnId) {
 
   var held = localStorage.getItem(KEY);
   if (held && held !== MY_ID) {
-    // Ping the holder to confirm it's alive
+    // Ping the holder to confirm it's actually alive
     localStorage.setItem(PING, held + ':' + Date.now());
+    var loginAlive = false;
+    var loginPongHandler = function(e) {
+      if (e.key === KEY && e.newValue === held) loginAlive = true;
+    };
+    window.addEventListener('storage', loginPongHandler);
     setTimeout(function() {
-      if (localStorage.getItem(KEY) !== MY_ID) {
-        // Another tab is alive — show duplicate notice
+      window.removeEventListener('storage', loginPongHandler);
+      if (loginAlive && localStorage.getItem(KEY) !== MY_ID) {
         showBlockedScreen(
           'Already Open',
           'The Account Portal is already open<br>in another tab. Please use that tab.'
         );
-        return;
+      } else {
+        // Stale key — take ownership
+        localStorage.setItem(KEY, MY_ID);
       }
-    }, 400);
+    }, 500);
+  } else {
+    localStorage.setItem(KEY, MY_ID);
   }
-  localStorage.setItem(KEY, MY_ID);
 
-  // Respond to pings so the new tab backs off
+  // Respond to pings so a newer tab backs off
   window.addEventListener('storage', function(e) {
     if (e.key === PING && e.newValue && e.newValue.startsWith(MY_ID + ':'))
       localStorage.setItem(KEY, MY_ID);
@@ -1368,23 +1405,50 @@ function checkCaps(e, warnId) {
 #ann-track {
   display: inline-block;
   white-space: nowrap;
-  padding-left: 100vw;
   font-family: 'Outfit', sans-serif;
   font-size: 13px;
   color: rgba(56,189,248,0.9);
   letter-spacing: 0.3px;
-  animation: ann-slide 30s linear infinite;
 }
 #ann-track::before { content: '📢  '; }
 #ann-track::after  { content: '   ·   ·   ·'; opacity: 0.3; }
 @keyframes ann-slide {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+  0%   { transform: translateX(100vw); }
+  100% { transform: translateX(calc(-100% - 100vw)); }
 }
 </style>
 <div id="ann-banner"><div id="ann-track"></div></div>
 <script>
 (function(){
+  // Banner cycle: scrolls once across screen (~8s), hides 20s, repeats
+  var _bannerTimer = null;
+  var _bannerActive = false;
+  var _bannerText = '';
+
+  function runBannerCycle(banner, track) {
+    if (!_bannerActive) return;
+    // Reset animation
+    track.style.animation = 'none';
+    track.offsetHeight; // reflow
+    banner.classList.add('visible');
+    document.body.classList.add('ann-active');
+    track.style.animation = 'ann-slide 8s linear 1';
+    _bannerTimer = setTimeout(function() {
+      // Hide after scroll completes
+      banner.classList.remove('visible');
+      document.body.classList.remove('ann-active');
+      // Wait 20 seconds then show again
+      _bannerTimer = setTimeout(function() {
+        runBannerCycle(banner, track);
+      }, 20000);
+    }, 8500); // slightly longer than animation to ensure it finishes
+  }
+
+  function stopBannerCycle() {
+    _bannerActive = false;
+    if (_bannerTimer) { clearTimeout(_bannerTimer); _bannerTimer = null; }
+  }
+
   try {
     var fb = (typeof firebase !== 'undefined') ? firebase : null;
     if (!fb || !fb.apps.length) return;
@@ -1394,12 +1458,18 @@ function checkCaps(e, warnId) {
       var track  = document.getElementById('ann-track');
       if (!banner || !track) return;
       if (ann.active && ann.text && ann.text.trim()) {
-        track.textContent = ann.text.trim();
-        var dur = Math.round(1200 / (ann.speed || 35));
-        track.style.animationDuration = dur + 's';
-        banner.classList.add('visible');
+        var newText = ann.text.trim();
+        if (newText !== _bannerText) {
+          _bannerText = newText;
+          track.textContent = newText;
+          stopBannerCycle();
+          _bannerActive = true;
+          runBannerCycle(banner, track);
+        }
       } else {
+        stopBannerCycle();
         banner.classList.remove('visible');
+        document.body.classList.remove('ann-active');
       }
     });
   } catch(e) {}
