@@ -264,14 +264,6 @@ body.fading-out { animation: fadeOut 0.45s ease forwards; }
 @keyframes fadeOut { to { opacity: 0; } }
 </style>
 
-  <!-- Service Worker for faster repeat loads -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('sw.js').catch(function(){});
-      });
-    }
-  </script>
 </head>
 <body>
 
@@ -292,6 +284,8 @@ body.fading-out { animation: fadeOut 0.45s ease forwards; }
     <div class="logo"><span>Google Drive</span> · Login Portal</div>
     <h1>Login</h1>
     <p class="sub">Enter your credentials<br>Forgot your info? Contact me.
+      <br>
+      <br>***AS OF THE 2026-2027 SCHOOL YEAR, ALL PREVIOUS ACCOUNTS HAVE BEEN DELETED AND YOU WILL NEED TO RE-REGISTER.***
     <br><span class="sub-note">⏳ First login may take a moment — hang tight.</span></p>
     <div class="field">
       <label>Username</label>
@@ -796,6 +790,49 @@ function stopPresenceTracking() {
   currentPresencePage = null;
 }
 
+/* ═══════════════════════════════════════════════════
+   PENDING-SCREEN PRESENCE
+   Separate from the approved-user presence above.
+   Marks "this pending user's tab is actually open right
+   now" so the admin's Auto-Approve toggle can tell the
+   difference between someone still sitting on the
+   Awaiting Approval screen vs. someone who requested
+   access and closed the tab (who should stay in the
+   queue until manually approved).
+═══════════════════════════════════════════════════ */
+var pendingPresenceInterval = null;
+var pendingPresenceUser = null;
+
+function startPendingPresence(username) {
+  if (!username) return;
+  stopPendingPresence();
+  pendingPresenceUser = username;
+  // onDisconnect: Firebase server clears this the instant the tab/browser closes or crashes
+  db.ref('pendingPresence/' + safeKey(username)).onDisconnect().remove();
+  updatePendingPresence();
+  pendingPresenceInterval = setInterval(updatePendingPresence, PRESENCE_INTERVAL);
+}
+
+function updatePendingPresence() {
+  if (!pendingPresenceUser) return;
+  db.ref('pendingPresence/' + safeKey(pendingPresenceUser)).set({
+    username: pendingPresenceUser,
+    heartbeat: Date.now()
+  }).catch(function(err) {});
+}
+
+function stopPendingPresence() {
+  if (pendingPresenceInterval) {
+    clearInterval(pendingPresenceInterval);
+    pendingPresenceInterval = null;
+  }
+  if (pendingPresenceUser) {
+    var userKey = safeKey(pendingPresenceUser);
+    db.ref('pendingPresence/' + userKey).remove().catch(function() {});
+  }
+  pendingPresenceUser = null;
+}
+
 // Auto-cleanup on visibility change
 document.addEventListener('visibilitychange', function() {
   if (document.hidden && presenceInterval) {
@@ -804,6 +841,14 @@ document.addEventListener('visibilitychange', function() {
   } else if (!document.hidden && currentPresenceUser) {
     updatePresence();
     presenceInterval = setInterval(updatePresence, PRESENCE_INTERVAL);
+  }
+
+  if (document.hidden && pendingPresenceInterval) {
+    clearInterval(pendingPresenceInterval);
+    pendingPresenceInterval = null;
+  } else if (!document.hidden && pendingPresenceUser) {
+    updatePendingPresence();
+    pendingPresenceInterval = setInterval(updatePendingPresence, PRESENCE_INTERVAL);
   }
 });
 
@@ -956,6 +1001,7 @@ function loginUser() {
       document.getElementById('pending-user').textContent = currentUser;
       show('s-pending');
       startPolling(currentUser);
+      startPendingPresence(currentUser);
     } else if (existing.status === 'denied') {
       hideActionLoader(); show('s-denied');
     } else if (existing.status === 'kicked') {
@@ -984,6 +1030,8 @@ function registerUser() {
   btn.disabled = true; btn.textContent = 'Sending...';
   showActionLoader('Creating account, may take a sec to load...');
 
+  var autoApproved = false;
+
   // Check if user exists first (check both safeKey and scan all users for case-insensitive match)
   fbGet().then(function(data) {
     var existing = getUser(data, user);
@@ -993,8 +1041,11 @@ function registerUser() {
       btn.disabled = false; btn.textContent = 'Request Access →';
       return Promise.reject('duplicate');
     }
+    // Admin can flip this in Settings → Auto-Approve New Users.
+    // When on, new sign-ups skip the pending queue entirely.
+    autoApproved = !!(data && data.config && data.config.autoApprove === true);
     var now = new Date();
-    var newUser = { username: user, password: pass, status: 'pending', time: now.toLocaleTimeString() };
+    var newUser = { username: user, password: pass, status: autoApproved ? 'approved' : 'pending', time: now.toLocaleTimeString() };
     return db.ref('users/' + safeKey(user)).set(newUser)
       .then(function() {
         return logRegistration(user);
@@ -1002,10 +1053,23 @@ function registerUser() {
   }).then(function() {
     currentUser = user;
     hideActionLoader();
+    btn.disabled = false; btn.textContent = 'Request Access →';
+
+    if (autoApproved) {
+      logLogin(currentUser).then(function() {
+        startPresenceTracking(currentUser, 'login');
+        handleApproved();
+      }).catch(function() {
+        startPresenceTracking(currentUser, 'login');
+        handleApproved();
+      });
+      return;
+    }
+
     document.getElementById('pending-user').textContent = user;
     show('s-pending');
     startPolling(user);
-    btn.disabled = false; btn.textContent = 'Request Access →';
+    startPendingPresence(user);
   }).catch(function(e) {
     if (e !== 'duplicate') {
       hideActionLoader();
@@ -1030,6 +1094,7 @@ function startPolling(username) {
       if (!u) return;
       if (u.status === 'approved') {
         stopPolling();
+        stopPendingPresence();
         currentUser = u.username || currentUser || username; // canonical name from DB
         logLogin(currentUser).then(function() {
           startPresenceTracking(currentUser, 'login');
@@ -1039,9 +1104,9 @@ function startPolling(username) {
           handleApproved();
         });
       } else if (u.status === 'denied') {
-        stopPolling(); show('s-denied');
+        stopPolling(); stopPendingPresence(); show('s-denied');
       } else if (u.status === 'kicked') {
-        stopPolling(); show('s-kicked');
+        stopPolling(); stopPendingPresence(); show('s-kicked');
       }
     }).catch(function() {
       pollFails++;
@@ -1164,6 +1229,7 @@ function submitGameFeedback() {
 window.addEventListener('beforeunload', function() {
   stopPolling();
   stopPresenceTracking();
+  stopPendingPresence();
   stopInactivityWatch();
 
   var s = nowStamp();

@@ -290,7 +290,7 @@ window._gamesLoaded = true;
   // Default to Hub; Firebase flag can switch to CDN
   window.GAME_BASE_URL = HUB_URL;
 
-  db.ref('config/gameSourceV2').get().then(function (snap) {
+  db.ref('config/gameSourcePersonal').get().then(function (snap) {
     if (snap.exists() && snap.val() === true) {
       window.GAME_BASE_URL = CDN_URL;
     }
@@ -383,7 +383,7 @@ window.addEventListener('keydown', (e) => {
    Prefix "cl" is part of the actual filename on the CDN.
 ===================================================== */
 let files = [
-"cl1",
+  "cl1",
 "cl100RoomsOfEnemies",
 "cl10bullets",
 "cl10minutestildawn",
@@ -948,6 +948,7 @@ let files = [
 "cldkccompetitioncart",
 "clDKNESCollection(1)",
 "clDKNESCollection",
+"clDigOutofPrison",
 "cldoblox",
 "cldogeminer",
 "cldogeminer2",
@@ -1099,6 +1100,7 @@ let files = [
 "clfallout",
 "clfamidash",
 "clfamidash128",
+"clfamidash2alpha",
 "clfamidashAlbum128",
 "clfamidashBSides128",
 "clfamidashCSides128",
@@ -1176,6 +1178,7 @@ let files = [
 "clfivenightsatyoshis",
 "clflappybird",
 "clflashsonic",
+"clFleurdeLis",
 "clfloodrunner",
 "clfloodrunner2",
 "clfloodrunner4",
@@ -3314,7 +3317,28 @@ let files = [
 "supremeduelistfix",
 "thiefpuzzle",
 "unpkg",
-"cl?"
+"cl?",
+"clcatmario",
+"clCeliasStupidROMHack",
+"clDigOutofPrison",
+"cldokidokiliteratureclub",
+"cldrivemad",
+"clfamidash2alpha",
+"clFleurdeLis",
+"clgranny3",
+"clgrowdenio",
+"clhalloween2600",
+"cllegoracers",
+"clpaperio3d",
+"clpokeaestheticred",
+"clpokecrystaladvanceredux",
+"clpokecrystallegacy",
+"clpokeemeraldextendedcut",
+"clpokeemeraldlegacy",
+"clpokeyellowlegacy",
+"clsausageflip",
+"clswitch",
+"clwariowaretouched"
 ];
 /* =====================================================
    FAVOURITES
@@ -3514,7 +3538,7 @@ function generateAllSections() {
     const sectionFiles = filesByChar[char];
     let rendered = false;
 
-    function renderCards() {
+    function renderCards(immediate) {
       if (rendered) return;
       rendered = true;
       const CHUNK = 30;
@@ -3532,13 +3556,20 @@ function generateAllSections() {
         }
         grid.appendChild(frag);
         if (idx < sectionFiles.length) {
-          setTimeout(renderChunk, 0);
+          if (immediate) {
+            renderChunk(); // finish synchronously so search sees every card right away
+          } else {
+            setTimeout(renderChunk, 0);
+          }
         }
       }
       renderChunk();
     }
 
-    // Expose so filterGames can force-render if user searches an unrendered section
+    // Expose so filterGames can force-render if user searches an unrendered section.
+    // Pass `true` to render every card synchronously (used by search) instead of
+    // yielding between 30-card chunks — otherwise filterGames runs its DOM query
+    // before later chunks exist and misses matches past the first 30 in a section.
     grid._lazyRender = renderCards;
 
     // Use IntersectionObserver with a generous rootMargin so cards appear
@@ -3899,7 +3930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (section.querySelector('.game-card-skeleton')) {
                     // Trigger the observer callback manually by dispatching a render
                     const grid = section.querySelector('.buttons-container');
-                    if (grid && grid._lazyRender) grid._lazyRender();
+                    if (grid && grid._lazyRender) grid._lazyRender(true);
                 }
             });
         }
@@ -3959,14 +3990,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Build Burger Button (sidebar toggle) ──
     (function() {
+        var BURGER = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+        var CLOSE  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/></svg>';
+
         const burgerBtn = document.createElement('button');
         burgerBtn.id = 'burger-btn';
         burgerBtn.title = 'Toggle sidebar';
-        burgerBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="3" y1="6"  x2="21" y2="6"/>
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>`;
+        burgerBtn.innerHTML = BURGER;
         document.body.appendChild(burgerBtn);
         // Inline styles as guaranteed fallback — CSS var may not be resolved yet
         burgerBtn.style.cssText = 'position:fixed;top:14px;left:13px;z-index:10001;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(8,15,30,0.94);border:1px solid rgba(56,189,248,0.25);color:rgba(56,189,248,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 4px 16px rgba(0,0,0,0.4);';
@@ -3978,9 +4008,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (collapsed) {
                 sidebar.classList.add('collapsed');
                 burgerBtn.classList.add('open');
+                burgerBtn.innerHTML = CLOSE;
             } else {
                 sidebar.classList.remove('collapsed');
                 burgerBtn.classList.remove('open');
+                burgerBtn.innerHTML = BURGER;
             }
             try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch(e) {}
         }

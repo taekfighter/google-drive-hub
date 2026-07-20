@@ -754,6 +754,7 @@ let files = [
 "clasteroids",
 "clasteroidsALT",
 "clasteroidsarcade",
+"clAstrosDreamland",
 "clastynax",
 "clatariadventure",
 "clattackhole",
@@ -1043,6 +1044,8 @@ let files = [
 "clcodblackopp",
 "clcoddefiance",
 "clcodenamegordon",
+"clcodeorg",
+"clcodeorgbutoffline",
 "clcodercraft",
 "clcodmodernwarfare",
 "clcodworldatwar",
@@ -1188,6 +1191,7 @@ let files = [
 "cldkccompetitioncart",
 "clDKNESCollection(1)",
 "clDKNESCollection",
+"clDigOutofPrison",
 "cldoblox",
 "cldogeminer",
 "cldogeminer2",
@@ -1339,6 +1343,7 @@ let files = [
 "clfallout",
 "clfamidash",
 "clfamidash128",
+"clfamidash2alpha",
 "clfamidashAlbum128",
 "clfamidashBSides128",
 "clfamidashCSides128",
@@ -1416,6 +1421,7 @@ let files = [
 "clfivenightsatyoshis",
 "clflappybird",
 "clflashsonic",
+"clFleurdeLis",
 "clfloodrunner",
 "clfloodrunner2",
 "clfloodrunner4",
@@ -1684,6 +1690,8 @@ let files = [
 "clheartandsoul",
 "clheartandsoul121",
 "clhei$t",
+"clHelios-Offline (1)",
+"clHelios-Offline",
 "clhelixjump",
 "clhellron",
 "clhelpnobrakes",
@@ -2106,6 +2114,8 @@ let files = [
 "clnarc",
 "clnatsuki64",
 "clnaturalselection",
+"clNautilusOS(1)",
+"clNautilusOS",
 "clNBAhangtime",
 "clNBAjam",
 "clnbajamTE",
@@ -2140,6 +2150,7 @@ let files = [
 "clnightclubshowdown",
 "clnightfire",
 "clnightshade",
+"clnikehub",
 "clnimrods",
 "clninjabrawl",
 "clninjaobbyparkor",
@@ -2612,6 +2623,8 @@ let files = [
 "clsandboxcity",
 "clsandboxels",
 "clsandsofthecoliseum",
+"clsandstone(1)",
+"clsandstone",
 "clsandtris",
 "clsantarun",
 "clsanty",
@@ -2686,6 +2699,7 @@ let files = [
 "clsilver",
 "clsimcity64",
 "clsimpsonsarcade",
+"clSINGLEFILE",
 "clsixwaystodie",
 "clskateit",
 "clskateordie",
@@ -3473,6 +3487,7 @@ let files = [
 "clscoobydoocreepyrun",
 "clscoobydoozombiehunter",
 "clsimcity64",
+"clSINGLEFILE",
 "clskywire",
 "clskywire2",
 "clslalomnes",
@@ -3539,9 +3554,34 @@ let files = [
 "clxor",
 "codeorg",
 "EB.Client.V1.0.0R2.WASM",
+"esm",
+"npm",
+"skypack",
 "supremeduelistfix",
 "thiefpuzzle",
-"cl?"
+"unpkg",
+"cl?",
+"clcatmario",
+"clCeliasStupidROMHack",
+"clDigOutofPrison",
+"cldokidokiliteratureclub",
+"cldrivemad",
+"clfamidash2alpha",
+"clFleurdeLis",
+"clgranny3",
+"clgrowdenio",
+"clhalloween2600",
+"cllegoracers",
+"clpaperio3d",
+"clpokeaestheticred",
+"clpokecrystaladvanceredux",
+"clpokecrystallegacy",
+"clpokeemeraldextendedcut",
+"clpokeemeraldlegacy",
+"clpokeyellowlegacy",
+"clsausageflip",
+"clswitch",
+"clwariowaretouched"
 ];
 /* =====================================================
    FAVOURITES
@@ -3742,7 +3782,7 @@ function generateAllSections() {
     const sectionFiles = filesByChar[char];
     let rendered = false;
 
-    function renderCards() {
+    function renderCards(immediate) {
       if (rendered) return;
       rendered = true;
       const CHUNK = 30;
@@ -3760,13 +3800,20 @@ function generateAllSections() {
         }
         grid.appendChild(frag);
         if (idx < sectionFiles.length) {
-          setTimeout(renderChunk, 0);
+          if (immediate) {
+            renderChunk(); // finish synchronously so search sees every card right away
+          } else {
+            setTimeout(renderChunk, 0);
+          }
         }
       }
       renderChunk();
     }
 
-    // Expose so filterGames can force-render if user searches an unrendered section
+    // Expose so filterGames can force-render if user searches an unrendered section.
+    // Pass `true` to render every card synchronously (used by search) instead of
+    // yielding between 30-card chunks — otherwise filterGames runs its DOM query
+    // before later chunks exist and misses matches past the first 30 in a section.
     grid._lazyRender = renderCards;
 
     // Use IntersectionObserver with a generous rootMargin so cards appear
@@ -4124,7 +4171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.letter-section').forEach(section => {
                 if (section.querySelector('.game-card-skeleton')) {
                     const grid = section.querySelector('.buttons-container');
-                    if (grid && grid._lazyRender) grid._lazyRender();
+                    if (grid && grid._lazyRender) grid._lazyRender(true);
                 }
             });
         }
@@ -4182,6 +4229,45 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 800);
         });
     }
+
+    // ── Build Burger Button (sidebar toggle) ──
+    (function() {
+        const BURGER_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`;
+        const CLOSE_ICON  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/></svg>`;
+
+        const burgerBtn = document.createElement('button');
+        burgerBtn.id = 'burger-btn';
+        burgerBtn.title = 'Toggle sidebar';
+        burgerBtn.innerHTML = BURGER_ICON;
+        document.body.appendChild(burgerBtn);
+        burgerBtn.style.cssText = 'position:fixed;top:14px;left:13px;z-index:10001;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(8,15,30,0.94);border:1px solid rgba(56,189,248,0.25);color:rgba(56,189,248,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+
+        const sidebar = document.getElementById('sidebar');
+        const STORAGE_KEY = 'sidebar_collapsed';
+
+        function setSidebar(collapsed) {
+            if (collapsed) {
+                sidebar.classList.add('collapsed');
+                burgerBtn.classList.add('open');
+                burgerBtn.innerHTML = CLOSE_ICON;
+            } else {
+                sidebar.classList.remove('collapsed');
+                burgerBtn.classList.remove('open');
+                burgerBtn.innerHTML = BURGER_ICON;
+            }
+            try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch(e) {}
+        }
+
+        try {
+            if (localStorage.getItem(STORAGE_KEY) === '1') setSidebar(true);
+            else setSidebar(false);
+        } catch(e) { setSidebar(false); }
+
+        burgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setSidebar(!sidebar.classList.contains('collapsed'));
+        });
+    })();
 
     // ── Build Gear Settings Panel ──
     buildGearPanel();
@@ -4567,6 +4653,11 @@ setInterval(updateClock,1000);
         #back-to-top::before { background: radial-gradient(circle at center bottom,rgba(var(--accent-rgb),.15) 0%,transparent 70%) !important; }
         #progress-bar { background: linear-gradient(90deg,var(--accent-blue),rgba(var(--accent-rgb),.5)) !important; box-shadow: 0 0 8px rgba(var(--accent-rgb),.6) !important; }
         #settings-btn { border-color: rgba(var(--accent-rgb),.25) !important; color: rgba(var(--accent-rgb),.8) !important; }
+        #burger-btn { position:fixed; top:14px; left:13px; z-index:10001; width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:var(--sidebar-bg); border:1px solid rgba(var(--accent-rgb),.25); color:rgba(var(--accent-rgb),.8); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); box-shadow:0 4px 16px rgba(0,0,0,.4); transition:border-color .2s ease, color .2s ease, box-shadow .2s ease; }
+        #burger-btn:hover { border-color: rgba(var(--accent-rgb),.65) !important; color: var(--accent-blue) !important; box-shadow: 0 4px 20px rgba(var(--accent-rgb),.2) !important; }
+        .sidebar { transition: width .25s ease, padding .25s ease; }
+        .sidebar.collapsed { width:0 !important; padding-left:0 !important; padding-right:0 !important; border-right-color:transparent !important; overflow:hidden; }
+        .sidebar { padding-top:66px !important; }
         #settings-panel { border-color: rgba(var(--accent-rgb),.2) !important; }
         #search-dropdown { border-color: rgba(var(--accent-rgb),.25) !important; }
         .search-wrap { border-color: rgba(var(--accent-rgb),.25) !important; }

@@ -85,14 +85,6 @@
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="stylesheet" href="styles.css">
 
-  <!-- Service Worker for faster repeat loads -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('sw.js').catch(function(){});
-      });
-    }
-  </script>
 </head>
 <body>
 
