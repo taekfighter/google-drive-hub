@@ -638,12 +638,20 @@ function fbGet() {
     .then(function(val) {
     cachedData = val || {};
 
-    if (cachedData.users && !Array.isArray(cachedData.users)) {
+    // Firebase silently serializes a node as a JSON array (not an object) when
+    // every child key happens to be a plain sequential number — e.g. usernames
+    // like "1", "2", "3". Must handle both shapes or entries get dropped/nulled.
+    if (Array.isArray(cachedData.users)) {
+      cachedData.users = cachedData.users.filter(function(u) {
+        return u && typeof u === 'object' && u.username;
+      });
+    } else if (cachedData.users && typeof cachedData.users === 'object') {
       cachedData.users = Object.values(cachedData.users).filter(function(u) {
         return u && typeof u === 'object' && u.username;
       });
+    } else {
+      cachedData.users = [];
     }
-    if (!Array.isArray(cachedData.users)) cachedData.users = [];
 
     if (cachedData.activityLog && !Array.isArray(cachedData.activityLog)) {
       cachedData.activityLog = Object.values(cachedData.activityLog).filter(Boolean).reverse();

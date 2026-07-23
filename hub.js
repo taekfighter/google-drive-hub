@@ -293,16 +293,6 @@ window._gamesLoaded = true;
   if (!firebase.apps.length) firebase.initializeApp(FB_CFG);
   const db = firebase.database();
 
-  /* ── Anti-inspect (right-click / devtools shortcuts) ─ */
-  document.addEventListener('contextmenu', e => e.preventDefault());
-  document.addEventListener('keydown', e => {
-    if (
-      e.keyCode === 123 ||
-      (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
-      (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))
-    ) { e.preventDefault(); return false; }
-  });
-
   /* ── Auth guard ───────────────────────────────────── */
   const username = sessionStorage.getItem('clocker_user');
   if (!username) return;
@@ -549,7 +539,7 @@ window._gamesLoaded = true;
   startPresence();
 })();
 
-/* Console locked by security.js — loaded before this script in clocker.html */
+/* Console lock — bundled inline below (was a separate security.js) */
 
 /* =====================================================
    NEW BADGE SYSTEM
@@ -626,7 +616,7 @@ window.addEventListener('keydown', (e) => {
    Prefix "cl" is part of the actual filename on the CDN.
 ===================================================== */
 let files = [
-  "cl1",
+"cl1",
 "cl100RoomsOfEnemies",
 "cl10bullets",
 "cl10minutestildawn",
@@ -1043,7 +1033,7 @@ let files = [
 "clcodblackopp",
 "clcoddefiance",
 "clcodenamegordon",
-
+"",
 "clcodercraft",
 "clcodmodernwarfare",
 "clcodworldatwar",
@@ -3320,214 +3310,96 @@ let files = [
 "clbaldi-3",
 "clbaldi-b",
 "cl100in1nes",
-"cl10bullets",
 "cl10yardfight",
 "cl1942nes",
 "claceattorneymilesedgeworth",
-"cladvancewarsdualstrike",
-"clalexkiddinmiracleworld",
 "clangrybirds2",
 "clangrybirdsslingshotfrenzy",
 "clanimalcrossing",
-"clanimalforestn64",
 "clantipathy",
 "clarcadevolley",
 "classroommaxxing",
-"clb3313unabandonedA2",
-"clbadicecream2",
-"clbadicecream3",
 "clballoonfight",
 "clbaseballnes",
-"clbejeweledtwistds",
 "clbitburner",
-"clbotwds",
-"clbrotato",
 "clbuckbumble",
-"clcactusmccoy",
-"clcactusmccoy2",
 "clcarnivalgamesds",
-"clceleste",
-"clceleste2",
-"clcelestemariodx",
-"clCeliasStupidROMHack",
-"clchoroqwonderful",
 "clclucluland",
 "clcoldfront",
-"clcoverorangeplayerspack3",
-"clcrash2",
-"clcrash3",
-"clcrashbandicoot (1)",
 "clcrashbash",
-"clcvooc",
-"cldecision3",
-"clDKNESCollection",
 "cldodecadragons",
 "cldoomori",
-"cldoubledribble",
-"cldragonquest5ds",
-"clducktales2",
 "cldunedash",
 "cldungeonsanddegenerategambler",
 "cldungeonsanddegenerategamblerdebug",
 "cleccothedolphin",
-"clelevatoraction",
-"clescalatingduel",
 "clescaperoad3",
 "cleugeneslife",
 "clexcitebike",
-"clexitpath",
 "clfamidashESides1.2.8",
-"clfantasyzone",
-"clfinalfantasy2nes",
-"clfinalfantasy3nes",
 "clfivenightsatfrickbears3",
 "clfloodrunner3",
 "clfnfsohv2",
-"clfzerox",
 "clGeometryDashWave",
 "clgettingoverit",
 "clgrandshiftauto",
-"clgyromite",
-"clhangonsms",
 "clheartandsoul1.2.1",
 "clHelltaker",
-"clhl2doom",
-"clHoennsLastWish",
 "clhooked",
 "clhorntale",
 "clhungrylamu2",
 "clhungrypumpkin",
 "cliceclimber",
 "clihateyou",
-"climpossiblequiz",
-"climpossiblequiz2",
-"cljojobaps1",
 "cljustaplatformer",
 "cljustaplatformerE",
 "cljustaplatformerE2",
 "clknuckleschaotix",
 "clleafblower",
 "cllearntofly2hacked",
-"clLearnToFly3Debug",
-"cllearntoflyidle",
-"cllearntoflyidlehack",
 "cllegionbreaker",
 "clmachrider",
 "clmariobrosnes",
-"clMarvelVsCapcomPS1",
-"clMarvelVsStreetFighter",
-"clmedalofhonor",
-"clmegamanx5",
-"clmegamanx6",
 "clmeowio",
-"clmidwaysgreatesthitsn64",
-"clmkmythologiesn64",
-"clmktrilogyps1",
 "clmrdriller",
 "clmrdriller2",
-"clneonrider",
-"clnewersmbds",
 "clnewsuperbowserworld",
 "clnguidle",
-"clnsmbuds",
-"clnsmbwds",
-"clOotMasterQuest",
-"clOrangeRoulette",
-"clPaperMarioDSE",
-"clPaperMarioPracticeHack",
 "clpinballnes",
-"clPokeAmbrosia",
-"clpokecrystaladvanceredux",
-"clpokecrystalclear",
 "clpokeemeraldextendedcut",
-"clpokeemeraldimperium",
-"clpokeemeraldrogue",
-"clPokeEmeraldRogueEX",
-"clpokefrlgplus",
-"clPokeFusion3",
-"clpokegoldenshield",
-"clPokeHeartgoldGenerations",
 "clpokelowbudgetcrystal",
-"clpokemonemeraldcrest",
-"clPokemonemeraldrouge",
 "clpokemonperfectemerald5.5",
-"clpokemonstadium2",
-"clpokemoonemerald",
-"clpokemoongalaxy",
 "clpokepicross",
-"clpokepureblue",
-"clpokepuregreen",
-"clpokepurered",
-"clpokerowe",
 "clpokescrambledscarlet",
-"clpokesunsky",
-"clPokeThetaEmeraldEX",
-"clpoketoomanytypes2",
-"clportraitofruin",
 "clprankcalltungtungtungsahurclicker",
 "clprestigetree",
 "clprowrestling",
-"clpunchthetrump",
 "clquake",
 "clrabbithole106",
-"clradicalred",
 "clreacticore",
-"clroadrunnernes",
 "clrunfromwitheredfox",
 "clscoobydoocreepyrun",
 "clscoobydoozombiehunter",
-"clsimcity64",
-"clskywire",
-"clskywire2",
 "clslalomnes",
 "clslicemaster",
-"clsm64greenstars",
-"clSM64Land",
-"clsm64lastimpact",
-"clsm64liminaldream",
-"clsm64sapphire",
 "clsm64yscaled",
 "clsmashremix2.0.1",
 "clsoccernes",
-"clsomari64",
-"clsonic2pinkedition",
-"clsonic2timeandplace",
-"clsonic3andsally",
-"clsoniccd",
-"clsonicclassicheroes",
 "clsonicdrift",
 "clsonicdrift2",
-"clsonicerazor",
 "clsonicmegamix5.0aLEAKED",
 "clsonicmushroomblast",
-"clsonicscorchedquest",
-"clsotn",
-"clspaceharriersms",
-"clspidermanps1",
-"clSportsHeadsIceHockey",
 "clsprunkipyramixed",
-"clstarfox",
 "clstarfox2",
 "clstarfoxsfx2",
 "clsugaryspire",
-"clsupermario3mix",
-"clsupermario74",
-"clsupermariostarroad",
-"clsupermariostarroadretooled",
 "clswingforbrainrots",
 "cltailsadventure",
 "cltailsskypatrol",
-"cltekken2ps1",
-"cltekken3ps1",
 "cltennisnes",
 "clthemeparkpsx",
-"clTheSunForTheVampire",
-"cltomodachicollection",
-"cltoomanytypes",
 "cltreeshateyou",
 "cltungtungbasics",
-"clumjammerlammy",
-"clunfairmarioworkquestionmark",
 "clurbanchampion",
 "clUvuvwevwevweOnyetenvewveUgwemubwemOssas",
 "clvibribbon",
@@ -3538,31 +3410,17 @@ let files = [
 "clwonderboy3",
 "clwonderboyarcade",
 "clwreckingcrew",
-"clwwfattitude",
-"clwwfsmackdown2",
 "clxor",
 "supremeduelistfix",
 "thiefpuzzle",
 "cl?",
-"clcatmario",
-"clCeliasStupidROMHack",
-"clDigOutofPrison",
-"cldokidokiliteratureclub",
 "cldrivemad",
-"clfamidash2alpha",
-"clFleurdeLis",
-"clgranny3",
-"clgrowdenio",
 "clhalloween2600",
 "cllegoracers",
-"clpaperio3d",
 "clpokeaestheticred",
-"clpokecrystaladvanceredux",
 "clpokecrystallegacy",
-"clpokeemeraldextendedcut",
 "clpokeemeraldlegacy",
 "clpokeyellowlegacy",
-"clsausageflip",
 "clswitch",
 "clwariowaretouched"
 ];
@@ -4036,12 +3894,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function _thumbHashLocal(name) {
-        let h = 0;
-        for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-        return h;
-    }
-
     function showDropdown(q) {
         if (!q) { hideDropdown(); return; }
         // Search the full files array (covers unrendered lazy sections too)
@@ -4067,7 +3919,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const thumb = document.createElement('div');
             thumb.className = 'search-drop-thumb';
             const letter = (display.replace(/^cl/i, '')[0] || '?').toUpperCase();
-            const hash = _thumbHashLocal(display);
+            const hash = _thumbHash(display);
             const bgOp = (0.22 + (hash % 9) * 0.018).toFixed(3);
             thumb.style.background = `rgba(var(--accent-rgb),${bgOp})`;
             thumb.textContent = letter;
@@ -4566,8 +4418,8 @@ function applyFontSize(v) {
 
 
 /* =====================================================
-   SPIDERWEB BACKGROUND — loaded from spiderweb.js
-   (clocker.html loads spiderweb.js before games.js)
+   SPIDERWEB BACKGROUND — bundled inline below
+   (was a separate spiderweb.js, now part of this file)
 ===================================================== */
 
 /* =====================================================
