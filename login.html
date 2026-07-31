@@ -21,7 +21,34 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Home - Google Drive</title>
-<script src="security.js"></script>
+<script>
+/* =====================================================
+   NUCLEAR CONSOLE LOCK
+   Loaded as the very first script in every page.
+   Object.defineProperty + Object.freeze means no
+   injected script can ever restore console methods.
+===================================================== */
+(function(){
+  var noop = function(){};
+  var methods = [
+    'log','error','warn','info','debug','dir','dirxml','table',
+    'trace','group','groupCollapsed','groupEnd','time','timeEnd',
+    'timeLog','timeStamp','profile','profileEnd','count','countReset',
+    'assert','clear'
+  ];
+  methods.forEach(function(m){
+    try {
+      Object.defineProperty(console, m, {
+        get: function(){ return noop; },
+        set: function(){},
+        configurable: false,
+        enumerable: false
+      });
+    } catch(e){}
+  });
+  try { Object.freeze(console); } catch(e){}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -615,20 +642,6 @@ function fetchWithTimeout(url, options, ms) {
     .catch(function(e) { clearTimeout(tid); throw e; });
 }
 
-// REST-based delete
-function fbDelete(path) {
-  return fetchWithTimeout(DB_URL + '/' + path + '.json?auth=' + DB_KEY, { method: 'DELETE' });
-}
-
-// SHA-256 password hash using Web Crypto — no library needed
-function hashPassword(pass) {
-  var msgBuffer = new TextEncoder().encode(pass);
-  return crypto.subtle.digest('SHA-256', msgBuffer).then(function(hashBuffer) {
-    var hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(function(b) { return b.toString(16).padStart(2,'0'); }).join('');
-  });
-}
-
 function fbGet() {
   return fetchWithTimeout(DB_URL + '/.json?auth=' + DB_KEY)
     .then(function(r) {
@@ -677,15 +690,6 @@ function fbGetUser(username) {
     });
 }
 
-// Convert normalised users array back to keyed object for Firebase
-function usersToObj(arr) {
-  var obj = {};
-  (arr || []).forEach(function(u) {
-    if (u && u.username) obj[safeKey(u.username)] = u;
-  });
-  return obj;
-}
-
 // safeKey: Firebase keys can't have . # $ [ ]
 function safeKey(username) {
   return username.toLowerCase().replace(/[.#$[\]]/g, '_');
@@ -701,16 +705,6 @@ function show(id) {
 
 function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
-function esc(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function statusColor(s) {
-  return s === 'approved' ? '#4ade80' : s === 'pending' ? 'var(--accent-blue)' : s === 'kicked' ? '#fb923c' : '#f87171';
-}
-
 function formatDuration(ms) {
   var totalSec = Math.floor(ms / 1000);
   var h = Math.floor(totalSec / 3600);
@@ -719,11 +713,6 @@ function formatDuration(ms) {
   if (h > 0) return h + 'h ' + m + 'm';
   if (m > 0) return m + 'm ' + s + 's';
   return s + 's';
-}
-
-function buildLogEntry(username, event) {
-  var now = new Date();
-  return { username: username, event: event, date: now.toLocaleDateString(), time: now.toLocaleTimeString() };
 }
 
 function nowStamp() {
@@ -938,14 +927,6 @@ function pruneActivityLog() {
 
 function logLogin(username) {
   return logActivity(username, 'login');
-}
-
-function logLogout(username, sessionDuration) {
-  var extras = {};
-  if (sessionDuration) {
-    extras.duration = formatDuration(sessionDuration);
-  }
-  return logActivity(username, 'logout', extras);
 }
 
 function logRegistration(username) {
