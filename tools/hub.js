@@ -419,7 +419,7 @@ window.addEventListener('beforeunload', function (e) {
 /* =====================================================
    GAME FILE LIST
    ~2698 entries — each maps to a file name on the CDN:
-   https://cdn.jsdelivr.net/gh/taekfighter/ugs-singlefile/UGS-Files/<name>
+   https://cdn.jsdelivr.net/gh/taekfighter/google-drive-hub@main/UGS-Files/<name>
 
    TO ADD A GAME: append the filename (without path) to this array.
    TO REMOVE A GAME: delete its line.
