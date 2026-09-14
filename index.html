@@ -1,89 +1,133 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+    <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-CBRC0YZ54S"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-CBRC0YZ54S");
+</script>
+        <title>Google Drive - Loading...</title>
+        <style>
+            body,
+            html {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: #121212;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-family: sans-serif;
+            }
+        </style>
+        <link rel="icon" type="image/png" href="https://ssl.gstatic.com/docs/doclist/images/drive_favicon_2026_32dp.png">
+    </head>
+    <body>
+        <div style="color: white; text-align: center;">
+            <p>Click To Load Google Drive....</p>
+            <p style="font-size: 0.8rem; color: #555;">If the page doesn't open, check for a pop-up blocker.</p>
+        </div>
+        <script>
+            // --- SECURITY & ANTI-INSPECTION SCRIPTS ---
+            
+            // 1. Disable Right-Click
+            document.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/12.19.0/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/12.19.0/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/12.19.0/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+            // 2. Disable Key Combinations
+            document.addEventListener('keydown', (e) => {
+                // Check for: F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U, Ctrl+S
+                if (
+                    e.keyCode === 123 || 
+                    (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
+                    (e.ctrlKey && e.keyCode === 85) ||
+                    (e.ctrlKey && e.keyCode === 83)
+                ) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
-    </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
+            // 3. The "Debugger Trap"
+            (function() {
+                const tester = setInterval(() => {
+                    const start = performance.now();
+                    debugger; 
+                    const end = performance.now();
+                    if (end - start > 100) {
+                        console.clear();
+                        console.log("Developer tools are disabled for security.");
+                    }
+                }, 1000);
+            })();
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+            // --- ORIGINAL SITE LAUNCH LOGIC ---
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
-        }
-      });
-    </script>
-  </body>
+            function launchSite() {
+                var url = "tools/login.html";
+                var win = window.open('about:blank', '_blank');
+                if (win) {
+                    var savedTitle = (localStorage.getItem('setting_tab_title') || 'Home - Google Drive').replace(/\\/g,'\\\\').replace(/'/g,"'");
+                    var savedIcon  = (localStorage.getItem('setting_tab_icon') || 'https://ssl.gstatic.com/docs/doclist/images/drive_favicon_2026_32dp.png').replace(/'/g,"'").replace(/\\/g,'\\\\');
+                    var iframe = win.document.createElement('iframe');
+                    iframe.style = "position:fixed; top:0; left:0; width:100%; height:100%; border:none; z-index:1;";
+                    iframe.src = url;
+                    win.document.body.appendChild(iframe);
+                    // Tab Identity Keeper
+                    var keeper = win.document.createElement('script');
+                    keeper.textContent = [
+                        "(function(){",
+                        "if(window.__clockerKeeperActive)return;window.__clockerKeeperActive=true;",
+                        "function ls(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}",
+                        "function hd(){var h=document.head;if(!h){h=document.createElement('head');(document.documentElement||document).appendChild(h);}return h;}",
+                        "function setIco(h){",
+                        "  if(!h)return;",
+                        "  var head=hd();",
+                        "  var existing=head.querySelectorAll('link[rel=\"icon\"],link[rel=\"shortcut icon\"]');",
+                        "  for(var k=0;k<existing.length;k++){existing[k].parentNode.removeChild(existing[k]);}",
+                        "  var fresh=document.createElement('link');",
+                        "  fresh.rel='icon';fresh.type='image/png';fresh.href=h;",
+                        "  head.appendChild(fresh);",
+                        "}",
+                        "var D_T='" + savedTitle + "';",
+                        "var D_I='" + savedIcon + "';",
+                        "var lastT='',lastI='';",
+                        "function sync(){",
+                        "  var t=ls('setting_tab_title')||D_T;",
+                        "  var i=ls('setting_tab_icon')||D_I;",
+                        "  if(t&&t!==lastT){lastT=t;document.title=t;}",
+                        "  if(i&&i!==lastI){lastI=i;setIco(i);}",
+                        "}",
+                        "sync();",
+                        "setInterval(sync,400);",
+                        "window.addEventListener('message',function(e){",
+                        "  if(!e.data||e.data.type!=='_clocker_tab_identity')return;",
+                        "  var did=false;",
+                        "  if(e.data.title!=null){lastT=e.data.title;document.title=e.data.title;did=true;}",
+                        "  if(e.data.icon!=null){lastI=e.data.icon;setIco(e.data.icon);did=true;}",
+                        "  if(!did)sync();",
+                        "});",
+                        "})();"
+                    ].join('\n');
+                    win.document.body.appendChild(keeper);
+                    window.location.replace("https://schoology.pointschools.net/");
+                } else {
+                    // Pop-up blocked: wait for a single click to retry, then
+                    // remove the handler so extra clicks after a successful
+                    // open can't spawn additional tabs.
+                    document.body.onclick = function () {
+                        document.body.onclick = null;
+                        launchSite();
+                    };
+                }
+            }
+
+            // AUTO-LAUNCH on load
+            window.onload = function() {
+                launchSite();
+            };
+        </script>
+    </body>
 </html>
