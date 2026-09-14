@@ -21,38 +21,11 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Home - Google Drive</title>
-<script>
-/* =====================================================
-   NUCLEAR CONSOLE LOCK
-   Loaded as the very first script in every page.
-   Object.defineProperty + Object.freeze means no
-   injected script can ever restore console methods.
-===================================================== */
-(function(){
-  var noop = function(){};
-  var methods = [
-    'log','error','warn','info','debug','dir','dirxml','table',
-    'trace','group','groupCollapsed','groupEnd','time','timeEnd',
-    'timeLog','timeStamp','profile','profileEnd','count','countReset',
-    'assert','clear'
-  ];
-  methods.forEach(function(m){
-    try {
-      Object.defineProperty(console, m, {
-        get: function(){ return noop; },
-        set: function(){},
-        configurable: false,
-        enumerable: false
-      });
-    } catch(e){}
-  });
-  try { Object.freeze(console); } catch(e){}
-})();
-</script>
+<script src="security.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="icon" type="image/png" href="logo.png">
+<link rel="icon" type="image/png" href="https://ssl.gstatic.com/docs/doclist/images/drive_favicon_2026_32dp.png">
 <style>
 :root {
   --bg-dark: #0f172a;
@@ -290,6 +263,35 @@ h1 {
 body.fading-out { animation: fadeOut 0.45s ease forwards; }
 @keyframes fadeOut { to { opacity: 0; } }
 </style>
+
+<!-- Apply the last-picked hub theme (same palette/keys as hub.js/personal.js)
+     before first paint, so login.html visually matches. Runs synchronously
+     in <head> -- no flash of the default blue theme. -->
+<script>
+(function () {
+  var themes = {
+    blue:   { hex:'#38bdf8', rgb:'56,189,248',   card:'8,18,40' },
+    cyan:   { hex:'#06d6c7', rgb:'6,214,199',    card:'5,28,26' },
+    green:  { hex:'#4ade80', rgb:'74,222,128',   card:'6,24,10' },
+    lime:   { hex:'#a3e635', rgb:'163,230,53',   card:'14,22,3' },
+    purple: { hex:'#c084fc', rgb:'192,132,252',  card:'18,5,36' },
+    pink:   { hex:'#f472b6', rgb:'244,114,182',  card:'28,4,20' },
+    red:    { hex:'#f87171', rgb:'248,113,113',  card:'30,6,6' },
+    orange: { hex:'#fb923c', rgb:'251,146,60',   card:'28,14,4' },
+    gold:   { hex:'#fbbf24', rgb:'251,191,36',   card:'26,20,2' },
+    grey:   { hex:'#94a3b8', rgb:'148,163,184',  card:'20,20,22' },
+  };
+  try {
+    var name = localStorage.getItem('siteTheme');
+    var t = themes[name];
+    if (!t) return; // no saved theme, or unknown name -- keep default blue
+    var root = document.documentElement;
+    root.style.setProperty('--accent-blue', t.hex);
+    root.style.setProperty('--accent-rgb', t.rgb);
+    root.style.setProperty('--card-bg', 'rgba(' + t.card + ',0.75)');
+  } catch (e) {}
+})();
+</script>
 
 </head>
 <body>
@@ -642,6 +644,20 @@ function fetchWithTimeout(url, options, ms) {
     .catch(function(e) { clearTimeout(tid); throw e; });
 }
 
+// REST-based delete
+function fbDelete(path) {
+  return fetchWithTimeout(DB_URL + '/' + path + '.json?auth=' + DB_KEY, { method: 'DELETE' });
+}
+
+// SHA-256 password hash using Web Crypto — no library needed
+function hashPassword(pass) {
+  var msgBuffer = new TextEncoder().encode(pass);
+  return crypto.subtle.digest('SHA-256', msgBuffer).then(function(hashBuffer) {
+    var hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(function(b) { return b.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+
 function fbGet() {
   return fetchWithTimeout(DB_URL + '/.json?auth=' + DB_KEY)
     .then(function(r) {
@@ -690,6 +706,15 @@ function fbGetUser(username) {
     });
 }
 
+// Convert normalised users array back to keyed object for Firebase
+function usersToObj(arr) {
+  var obj = {};
+  (arr || []).forEach(function(u) {
+    if (u && u.username) obj[safeKey(u.username)] = u;
+  });
+  return obj;
+}
+
 // safeKey: Firebase keys can't have . # $ [ ]
 function safeKey(username) {
   return username.toLowerCase().replace(/[.#$[\]]/g, '_');
@@ -705,6 +730,16 @@ function show(id) {
 
 function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function statusColor(s) {
+  return s === 'approved' ? '#4ade80' : s === 'pending' ? 'var(--accent-blue)' : s === 'kicked' ? '#fb923c' : '#f87171';
+}
+
 function formatDuration(ms) {
   var totalSec = Math.floor(ms / 1000);
   var h = Math.floor(totalSec / 3600);
@@ -713,6 +748,11 @@ function formatDuration(ms) {
   if (h > 0) return h + 'h ' + m + 'm';
   if (m > 0) return m + 'm ' + s + 's';
   return s + 's';
+}
+
+function buildLogEntry(username, event) {
+  var now = new Date();
+  return { username: username, event: event, date: now.toLocaleDateString(), time: now.toLocaleTimeString() };
 }
 
 function nowStamp() {
@@ -927,6 +967,14 @@ function pruneActivityLog() {
 
 function logLogin(username) {
   return logActivity(username, 'login');
+}
+
+function logLogout(username, sessionDuration) {
+  var extras = {};
+  if (sessionDuration) {
+    extras.duration = formatDuration(sessionDuration);
+  }
+  return logActivity(username, 'logout', extras);
 }
 
 function logRegistration(username) {
@@ -1438,6 +1486,19 @@ function checkCaps(e, warnId) {
     if (localStorage.getItem(KEY) === MY_ID) localStorage.removeItem(KEY);
   });
 })();
+
+// Ask for confirmation before leaving (closing the tab, typing a new URL,
+// hitting back, etc.) — but not when navigating to a hub after a
+// successful login (navigatingToHub, set right before that redirect) or
+// if a panic key is ever added to this page later (window._panicking,
+// kept for consistency with clocker.html/clocker2.html).
+// Note: browsers show their own fixed wording here ("Leave site?") — no
+// site can customize or style this text, only trigger/skip it.
+window.addEventListener('beforeunload', function (e) {
+  if (window._panicking || navigatingToHub) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 </script>
 
 <!-- SPIDERWEB BACKGROUND -->

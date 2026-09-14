@@ -1,11 +1,24 @@
+/*=========================================================================================================================================================================
+                                    |  \                   |  \        |  \                                                                    |  \              |  \      
+  ______   ______   ______   ______ | ▓▓ ______        ____| ▓▓ ______  \▓▓__     __  ______        ______   ______  ______ ____   ______      | ▓▓____  __    __| ▓▓____  
+ /      \ /      \ /      \ /      \| ▓▓/      \      /      ▓▓/      \|  \  \   /  \/      \      /      \ |      \|      \    \ /      \     | ▓▓    \|  \  |  \ ▓▓    \ 
+|  ▓▓▓▓▓▓\  ▓▓▓▓▓▓\  ▓▓▓▓▓▓\  ▓▓▓▓▓▓\ ▓▓  ▓▓▓▓▓▓\    |  ▓▓▓▓▓▓▓  ▓▓▓▓▓▓\ ▓▓\▓▓\ /  ▓▓  ▓▓▓▓▓▓\    |  ▓▓▓▓▓▓\ \▓▓▓▓▓▓\ ▓▓▓▓▓▓\▓▓▓▓\  ▓▓▓▓▓▓\    | ▓▓▓▓▓▓▓\ ▓▓  | ▓▓ ▓▓▓▓▓▓▓\
+| ▓▓  | ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓ ▓▓ ▓▓    ▓▓    | ▓▓  | ▓▓ ▓▓   \▓▓ ▓▓ \▓▓\  ▓▓| ▓▓    ▓▓    | ▓▓  | ▓▓/      ▓▓ ▓▓ | ▓▓ | ▓▓ ▓▓    ▓▓    | ▓▓  | ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓
+| ▓▓__| ▓▓ ▓▓__/ ▓▓ ▓▓__/ ▓▓ ▓▓__| ▓▓ ▓▓ ▓▓▓▓▓▓▓▓    | ▓▓__| ▓▓ ▓▓     | ▓▓  \▓▓ ▓▓ | ▓▓▓▓▓▓▓▓    | ▓▓__| ▓▓  ▓▓▓▓▓▓▓ ▓▓ | ▓▓ | ▓▓ ▓▓▓▓▓▓▓▓    | ▓▓  | ▓▓ ▓▓__/ ▓▓ ▓▓__/ ▓▓
+ \▓▓    ▓▓\▓▓    ▓▓\▓▓    ▓▓\▓▓    ▓▓ ▓▓\▓▓     \     \▓▓    ▓▓ ▓▓     | ▓▓   \▓▓▓   \▓▓     \     \▓▓    ▓▓\▓▓    ▓▓ ▓▓ | ▓▓ | ▓▓\▓▓     \    | ▓▓  | ▓▓\▓▓    ▓▓ ▓▓    ▓▓
+ _\▓▓▓▓▓▓▓ \▓▓▓▓▓▓  \▓▓▓▓▓▓ _\▓▓▓▓▓▓▓\▓▓ \▓▓▓▓▓▓▓      \▓▓▓▓▓▓▓\▓▓      \▓▓    \▓     \▓▓▓▓▓▓▓     _\▓▓▓▓▓▓▓ \▓▓▓▓▓▓▓\▓▓  \▓▓  \▓▓ \▓▓▓▓▓▓▓     \▓▓   \▓▓ \▓▓▓▓▓▓ \▓▓▓▓▓▓▓ 
+|  \__| ▓▓                 |  \__| ▓▓                                                             |  \__| ▓▓                                                               
+ \▓▓    ▓▓                  \▓▓    ▓▓                                                              \▓▓    ▓▓                                                               
+  \▓▓▓▓▓▓                    \▓▓▓▓▓▓                                                                \▓▓▓▓▓▓                                                                
+===========================================================================================================================================================================
+
 /* ============================================================
    hub.js — Combined bundle for clocker.html & clocker2.html
    Includes: security.js + spiderweb.js + games.js
    Edit games: find 'let files = [' and add/remove entries.
    Edit spiderweb: find '=== spiderweb.js ==='
    After editing, re-minify with: terser hub.js -o hub.min.js --compress --mangle
-============================================================ */
-
+============================================================ 
 /* === security.js === */
 /* =====================================================
    NUCLEAR CONSOLE LOCK
@@ -36,228 +49,10 @@
         configurable: false,
         enumerable: false
       });
-    } catch(e){ /* intentional: best-effort cleanup */ }
+    } catch(e){ }
   });
-  /* Do NOT call Object.freeze(console) — that also locks error/warn
-     and silences Firebase's own internal connection error reporting. */
 })();
 
-/* === spiderweb.js === */
-(function(){
-    const canvas = document.getElementById('spiderweb');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: true });
-    let W = 0, H = 0;
-    let nodes = [], gridCols = 1, gridRows = 1, grid = [];
-    let mouse = { x: -9999, y: -9999 };
-
-    // These can be overridden by the settings panel via window globals
-    function getCfg() {
-        return {
-            N:     window._sw_nodes != null ? window._sw_nodes : 90,
-            DIST:  window._sw_dist  != null ? window._sw_dist  : 130,
-            SPEED: window._sw_speed != null ? window._sw_speed : 1.0,
-        };
-    }
-
-    const MDIST = 160;
-    const CELL  = 130;
-    const FPS   = 60;
-    const FRAME = 1000 / FPS;
-    let lastT   = 0;
-    let rafId   = null;
-    let hue     = 0;   // global hue that slowly cycles
-
-    // Allow settings panel to trigger a node rebuild
-    window._sw_rebuild = function() { initNodes(); };
-
-    function resize() {
-        W = canvas.width  = window.innerWidth;
-        H = canvas.height = window.innerHeight;
-        initNodes();
-    }
-
-    function initNodes() {
-        const { N } = getCfg();
-        const cols  = Math.max(1, Math.ceil(Math.sqrt(N * W / H)));
-        const rows  = Math.max(1, Math.ceil(N / cols));
-        const cellW = W / cols, cellH = H / rows;
-        nodes = [];
-        for (let r = 0; r < rows; r++)
-            for (let c = 0; c < cols && nodes.length < N; c++)
-                nodes.push({
-                    x:      (c + Math.random()) * cellW,
-                    y:      (r + Math.random()) * cellH,
-                    vx:     (Math.random() - .5) * .7,
-                    vy:     (Math.random() - .5) * .7,
-                    pr:     Math.random() * 1.8 + .6,
-                    ph:     Math.random() * Math.PI * 2,
-                    pulse:  Math.random() * Math.PI * 2,
-                    hueOff: Math.random() * 60 - 30,   // each node shifts hue ±30°
-                });
-        buildGrid();
-    }
-
-    function buildGrid() {
-        gridCols = Math.max(1, Math.ceil(W / CELL));
-        gridRows = Math.max(1, Math.ceil(H / CELL));
-        grid = Array.from({ length: gridCols * gridRows }, () => []);
-        nodes.forEach((n, i) => {
-            const gx = Math.min((n.x / CELL) | 0, gridCols - 1);
-            const gy = Math.min((n.y / CELL) | 0, gridRows - 1);
-            const idx = gy * gridCols + gx;
-            if (grid[idx]) {  // Safety check
-                grid[idx].push(i);
-            }
-        });
-    }
-
-    function neighbors(n) {
-        const gx = Math.min((n.x / CELL) | 0, gridCols - 1);
-        const gy = Math.min((n.y / CELL) | 0, gridRows - 1);
-        const out = [];
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-            const nx = gx + dx, ny = gy + dy;
-            if (nx < 0 || ny < 0 || nx >= gridCols || ny >= gridRows) continue;
-            const idx = ny * gridCols + nx;
-            if (grid[idx]) {  // Safety check
-                for (const i of grid[idx]) out.push(i);
-            }
-        }
-        return out;
-    }
-
-    function hslStr(h, s, l, a) {
-        return 'hsla(' + (h | 0) + ',' + s + '%,' + l + '%,' + a.toFixed(3) + ')';
-    }
-
-    function draw(ts) {
-        rafId = requestAnimationFrame(draw);
-        if (ts - lastT < FRAME) return;
-        const dt = Math.min((ts - lastT) / 16, 3);
-        lastT = ts;
-        if (!W || !H) return;
-
-        // Slowly cycle the global hue
-        hue = (hue + 0.12 * dt) % 360;
-
-        ctx.clearRect(0, 0, W, H);
-
-        const { DIST, SPEED } = getCfg();
-
-        // Move nodes
-        for (const n of nodes) {
-            n.x += n.vx * dt * SPEED;
-            n.y += n.vy * dt * SPEED;
-            n.ph    += .018 * dt;
-            n.pulse += .04  * dt;
-            if (n.x < 0 || n.x > W) n.vx *= -1;
-            if (n.y < 0 || n.y > H) n.vy *= -1;
-            const md = Math.hypot(n.x - mouse.x, n.y - mouse.y);
-            if (md < MDIST && md > 1) {
-                const f = (MDIST - md) / MDIST * .6;
-                n.x += (n.x - mouse.x) / md * f * dt;
-                n.y += (n.y - mouse.y) / md * f * dt;
-            }
-        }
-        buildGrid();
-
-        const DIST2 = DIST * DIST;
-
-        // Draw lines — gradient between each pair's hues
-        for (let ai = 0; ai < nodes.length; ai++) {
-            const a = nodes[ai];
-            for (const bi of neighbors(a)) {
-                if (bi <= ai) continue;
-                const b = nodes[bi];
-                const dx = a.x - b.x, dy = a.y - b.y;
-                const d2 = dx * dx + dy * dy;
-                if (d2 >= DIST2) continue;
-                const d   = Math.sqrt(d2);
-                const t   = 1 - d / DIST;
-
-                const mda = Math.hypot(a.x - mouse.x, a.y - mouse.y);
-                const mdb = Math.hypot(b.x - mouse.x, b.y - mouse.y);
-                const mi  = Math.max(0, 1 - Math.min(mda, mdb) / MDIST);
-
-                const baseAlpha = t * .38 * (.18 + mi * .6);
-                const lineWidth = .4 + t * 1.4 + mi * 1.4;
-
-                const ha = (hue + a.hueOff + 200) % 360;
-                const hb = (hue + b.hueOff + 200) % 360;
-
-                // Color gradient from node A to node B
-                const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-                grad.addColorStop(0, hslStr(ha, 90, 70, baseAlpha));
-                grad.addColorStop(1, hslStr(hb, 90, 70, baseAlpha));
-
-                ctx.beginPath();
-                ctx.moveTo(a.x, a.y);
-                ctx.lineTo(b.x, b.y);
-                ctx.strokeStyle = grad;
-                ctx.lineWidth   = lineWidth;
-                ctx.stroke();
-            }
-        }
-
-        // Draw nodes — three-layer glow
-        for (const n of nodes) {
-            const mi    = Math.max(0, 1 - Math.hypot(n.x - mouse.x, n.y - mouse.y) / MDIST);
-            const p     = Math.sin(n.ph)    * .5 + .5;
-            const pulse = Math.sin(n.pulse) * .5 + .5;
-            const nh    = (hue + n.hueOff + 200) % 360;
-            const r     = n.pr * (1 + p * .3 + mi * .8);
-
-            // Outer halo — only brightens near mouse
-            if (mi > .05) {
-                ctx.beginPath();
-                ctx.arc(n.x, n.y, r * 3.5, 0, Math.PI * 2);
-                ctx.fillStyle = hslStr(nh, 100, 65, mi * .09);
-                ctx.fill();
-            }
-
-            // Mid glow
-            ctx.beginPath();
-            ctx.arc(n.x, n.y, r * 1.9, 0, Math.PI * 2);
-            ctx.fillStyle = hslStr(nh, 90, 65, .08 + pulse * .06 + mi * .14);
-            ctx.fill();
-
-            // Core dot
-            ctx.beginPath();
-            ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-            ctx.fillStyle = hslStr(nh, 95, 80, .45 + p * .28 + mi * .3);
-            ctx.fill();
-        }
-
-
-    }
-
-    let resizeTimer;
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(resize, 200);
-    });
-    window.addEventListener('mousemove', e => {
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
-    }, { passive: true });
-
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-        } else {
-            lastT = 0;
-            rafId = requestAnimationFrame(draw);
-        }
-    });
-
-    resize();
-    rafId = requestAnimationFrame(draw);
-})();
-
-/* === games.js (hub runtime + game list + UI) === */
-// Guard against double-loading
 if (window._gamesLoaded) { throw new Error('games.js already loaded'); }
 window._gamesLoaded = true;
 
@@ -276,7 +71,6 @@ window._gamesLoaded = true;
    this entire block.
 ===================================================== */
 (function () {
-  /* Only runs on authenticated public hubs */
   if (typeof firebase === 'undefined') return;
   if (!window._HUB_ID) return;
 
@@ -362,11 +156,11 @@ window._gamesLoaded = true;
         keys.slice(0, keys.length - MAX_LOG).forEach(k => { del['activityLog/' + k] = null; });
         await db.ref('/').update(del);
       }
-    } catch (e) { /* intentional: best-effort cleanup */ }
+    } catch (e) {  }
   }
 
   /* ── Presence ─────────────────────────────────────── */
-  const PRESENCE_INTERVAL = 10000; // 10 s heartbeat
+  const PRESENCE_INTERVAL = 10000; 
   const presRef = db.ref('presence/' + safeKey(username));
   presRef.onDisconnect().remove();
 
@@ -398,15 +192,15 @@ window._gamesLoaded = true;
   async function forceLogout(reason, redirect, isKicked) {
     if (loggedOut) return;
     loggedOut = true;
-    if (_lockdownRef) { try { _lockdownRef.off(); } catch (e) { /* intentional: best-effort cleanup */ } _lockdownRef = null; }
-    if (_userRef)     { try { _userRef.off();     } catch (e) { /* intentional: best-effort cleanup */ } _userRef     = null; }
-    if (_wipeInterval)  { clearInterval(_wipeInterval);  _wipeInterval  = null; }
+    if (_lockdownRef) { try { _lockdownRef.off(); } catch (e) {  } _lockdownRef = null; }
+    if (_userRef) { try { _userRef.off(); } catch (e) { } _userRef = null; }
+    if (_wipeInterval) { clearInterval(_wipeInterval); _wipeInterval = null; }
     if (_inactInterval) { clearInterval(_inactInterval); _inactInterval = null; }
     stopPresence();
     if (isKicked) sessionStorage.setItem('clocker_kicked', '1');
     const lt    = sessionStorage.getItem('clocker_login_time');
     const extra = lt ? { duration: formatDuration(Date.now() - parseInt(lt, 10)) } : {};
-    try { await logActivity(username, reason, extra); } catch (e) { /* intentional: best-effort cleanup */ }
+    try { await logActivity(username, reason, extra); } catch (e) {  }
     sessionStorage.removeItem('clocker_user');
     sessionStorage.removeItem('clocker_login_time');
     if (redirect) window.location.href = redirect;
@@ -485,7 +279,7 @@ window._gamesLoaded = true;
           await logActivity('SYSTEM', 'daily-wipe');
           forceLogout('daily-wipe', 'login.html');
         }
-      } catch (e) { /* intentional: best-effort cleanup */ }
+      } catch (e) {  }
     }
   }, 30000);
 
@@ -514,7 +308,6 @@ window._gamesLoaded = true;
     const now      = Date.now();
     const logKey   = window._HUB_ID + '_logout_ts_' + safeKey(username);
     const lastExit = localStorage.getItem(logKey);
-    // 30-second dedup prevents double-logging on Chromebook lid-close / bfcache restore
     if (lastExit && now - parseInt(lastExit, 10) < 30000) {
       fetch('https://drive-portal-d7eb1-default-rtdb.firebaseio.com/presence/' + safeKey(username) + '.json',
         { method: 'DELETE', keepalive: true });
@@ -539,8 +332,6 @@ window._gamesLoaded = true;
   startPresence();
 })();
 
-/* Console lock — bundled inline below (was a separate security.js) */
-
 /* =====================================================
    NEW BADGE SYSTEM
    To mark a game as "New", add  // NEW  at the end of
@@ -552,7 +343,7 @@ window._gamesLoaded = true;
 ===================================================== */
 (function(){
     var DEPLOY_DATE = new Date('2026-05-26').getTime();
-    var SHOW_MS     = 7 * 24 * 60 * 60 * 1000; // 7 days
+    var SHOW_MS     = 7 * 24 * 60 * 60 * 1000; 
     var withinWindow = (Date.now() - DEPLOY_DATE) < SHOW_MS;
 
     var tagged = new Set();
@@ -598,8 +389,28 @@ window._gamesLoaded = true;
 ===================================================== */
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        window._panicking = true; 
         window.location.replace("https://drive.google.com/drive/my-drive");
     }
+});
+
+/* =====================================================
+   CLOSE CONFIRMATION
+   Asks before leaving (closing the tab, typing a new URL,
+   hitting back, etc.) — but never when the panic key fires,
+   since that needs to redirect instantly with no extra step
+   in the way. clocker.html/clocker2.html's own inline panic
+   key (registered early, before this file even downloads)
+   sets window._panicking the same way, so this stays correct
+   regardless of which panic key actually fired.
+   Note: browsers show their own fixed wording here
+   ("Leave site?") — no site can customize or style this
+   text, only trigger/skip it.
+===================================================== */
+window.addEventListener('beforeunload', function (e) {
+    if (window._panicking) return;
+    e.preventDefault();
+    e.returnValue = '';
 });
 
 /* =====================================================
@@ -616,6 +427,7 @@ window.addEventListener('keydown', (e) => {
    Prefix "cl" is part of the actual filename on the CDN.
 ===================================================== */
 let files = [
+// 2798 games
 "cl1",
 "cl100RoomsOfEnemies",
 "cl10bullets",
@@ -649,7 +461,6 @@ let files = [
 "cl64in1nes",
 "cl8ballclassic",
 "cl8ballpool",
-"cl9007199254740992",
 "cl90in1nes",
 "cl99balls",
 "cl99nightsitf",
@@ -684,7 +495,6 @@ let files = [
 "clagesofconflict",
 "clagesofempire",
 "clahoysurvival",
-"clai",
 "clairlinetycoonidle",
 "clakoopasrevenge",
 "clakoopasrevenge2",
@@ -803,7 +613,6 @@ let files = [
 "clbankrobbery2",
 "clbarryhasasecret",
 "clbartblast",
-"clbas",
 "clbaseballbros",
 "clbasketballfrvr",
 "clbasketballlegends(1)",
@@ -852,7 +661,6 @@ let files = [
 "clbitplanes",
 "clblackjack",
 "clblackjackbattle",
-"clblackjackhhhh",
 "clblackknight",
 "clblackout",
 "clblacksmithlab",
@@ -1033,7 +841,6 @@ let files = [
 "clcodblackopp",
 "clcoddefiance",
 "clcodenamegordon",
-"",
 "clcodercraft",
 "clcodmodernwarfare",
 "clcodworldatwar",
@@ -1313,7 +1120,6 @@ let files = [
 "clescaperoad",
 "clescaperoadcity2",
 "clescapeschoolduel",
-"clet",
 "cletrianoddyssey",
 "cleurovisionsim",
 "clevilglitch",
@@ -1719,7 +1525,6 @@ let files = [
 "clhungryknight",
 "clhungrylamu",
 "clhyppersandbox",
-"clicantbelievegoogleflaggedmeforthenameofthefilelol",
 "clice age baby",
 "clicedodo",
 "clicefishing",
@@ -1910,7 +1715,6 @@ let files = [
 "clmagetoweridle",
 "clmagictiles3",
 "clmajorasmask",
-"clmakesureitsclosed",
 "clmami",
 "clmanagod",
 "clmarbleracer(1)",
@@ -2096,7 +1900,6 @@ let files = [
 "clmyfriendpedro",
 "clmyfriendpedroarena",
 "clmyteardrop",
-"cln",
 "clnarc",
 "clnatsuki64",
 "clnaturalselection",
@@ -2134,6 +1937,7 @@ let files = [
 "clnightclubshowdown",
 "clnightfire",
 "clnightshade",
+"clnikehub",
 "clnimrods",
 "clninjabrawl",
 "clninjaobbyparkor",
@@ -2141,7 +1945,6 @@ let files = [
 "clnintendoworldcup",
 "clnitclient",
 "clnitromemustdie",
-"clnomoregameasdsadfagfggdfs",
 "clnoobminer",
 "clnotyourpawn",
 "clnovaclient",
@@ -2186,7 +1989,6 @@ let files = [
 "clordinarysonicromhack",
 "cloregontrail",
 "clorigamiking",
-"clormmimastickwithclsoitcanberememberedoyeahclalienhominid",
 "clortalkombat4",
 "closu",
 "clourpleguy",
@@ -2215,7 +2017,6 @@ let files = [
 "clpapapizzagood",
 "clpapapizzagoody",
 "clpapapizzamamamia",
-"clpapasburgerIIIAAAAA",
 "clpapascheeseria",
 "clpapascupcakeria",
 "clpapasfreezeria",
@@ -2265,7 +2066,6 @@ let files = [
 "clpheonixjusticeforall",
 "clpheonixrightaceattorny",
 "clpheonixtrialsandyear",
-"clpheonixtrialsandyeartrhfasd",
 "clpibbyapocalypse",
 "clpiclient",
 "clpico8",
@@ -2428,10 +2228,6 @@ let files = [
 "clpokewhite2",
 "clpokewhite2alt",
 "clpokeyellow",
-"clPok�mon Emerald Rush Edition (20)",
-"clPok�mon Trade&_Stache (V11)",
-"clPok�mon TWO (v11)",
-"clPok�monstunningsteel",
 "clpolicepursuit2",
 "clpolishedcrystal",
 "clpolytrackbutnotflagged(1)",
@@ -2556,7 +2352,6 @@ let files = [
 "clriddleschool",
 "clriddleschool2",
 "clriddleschool3",
-"clriddleschool445544444$$444$444",
 "clriddletransfer",
 "clriddletransfer2",
 "clriddleuneversityfix",
@@ -2633,7 +2428,6 @@ let files = [
 "clsecretofmana",
 "clsega2gg",
 "clSegaSonicTheHedgehog",
-"clself",
 "clsentryfortress",
 "clserenitrove",
 "clserioussamadvance",
@@ -2683,7 +2477,6 @@ let files = [
 "clsixwaystodie",
 "clskateit",
 "clskateordie",
-"clskibididibidygyattohiorizzingallovertheplacestillwatermangotheoryfemboydrool",
 "clskibidiinthebackrooms",
 "clskibidishooter",
 "clskinwalker",
@@ -2749,7 +2542,6 @@ let files = [
 "clsnowrideee",
 "clsnowrider",
 "clsnowridergoodygumdrops",
-"clsnowriderrrr",
 "clsnowroad",
 "clsnowwhite",
 "clsoccerbros",
@@ -3040,7 +2832,6 @@ let files = [
 "cltankpixel",
 "cltanktrouble",
 "cltanukisunset",
-"cltanukisunsetuhhhhhhhh",
 "cltapper",
 "cltaproad",
 "cltastyplanet",
@@ -3065,7 +2856,6 @@ let files = [
 "cltetrisattack",
 "cltetrisgba",
 "cltetrisgrandmaster2",
-"clthanksforremindingmeihadtofixthis",
 "cltheclassroom",
 "cltheclassroom2",
 "cltheclassroom3",
@@ -3082,7 +2872,6 @@ let files = [
 "clthemaninthewindow",
 "clthemepark",
 "clthepit",
-"clthereisnofile",
 "clthermomorph",
 "clthesodorrace",
 "clTheSunForTheVampire",
@@ -3306,7 +3095,6 @@ let files = [
 "clzrist",
 "clzuma",
 "clzumashooter",
-"cl�oo",
 "clbaldi-3",
 "clbaldi-b",
 "cl100in1nes",
@@ -3413,7 +3201,6 @@ let files = [
 "clxor",
 "supremeduelistfix",
 "thiefpuzzle",
-"cl?",
 "cldrivemad",
 "clhalloween2600",
 "cllegoracers",
@@ -3422,7 +3209,36 @@ let files = [
 "clpokeemeraldlegacy",
 "clpokeyellowlegacy",
 "clswitch",
-"clwariowaretouched"
+"clwariowaretouched",
+
+// ── SUSPICIOUS — 25 entries flagged for manual review ──
+// Corrupted filenames, keyboard-mash/spam, or developer notes that
+// aren't actual game titles. Check each before keeping/removing.
+"cl9007199254740992",
+"clai",
+"clbas",
+"clblackjackhhhh",
+"clet",
+"clicantbelievegoogleflaggedmeforthenameofthefilelol",
+"clmakesureitsclosed",
+"cln",
+"clnomoregameasdsadfagfggdfs",
+"clormmimastickwithclsoitcanberememberedoyeahclalienhominid",
+"clpapasburgerIIIAAAAA",
+"clpheonixtrialsandyeartrhfasd",
+"clPok�mon Emerald Rush Edition (20)",
+"clPok�mon Trade&_Stache (V11)",
+"clPok�mon TWO (v11)",
+"clPok�monstunningsteel",
+"clriddleschool445544444$$444$444",
+"clself",
+"clskibididibidygyattohiorizzingallovertheplacestillwatermangotheoryfemboydrool",
+"clsnowriderrrr",
+"cltanukisunsetuhhhhhhhh",
+"clthanksforremindingmeihadtofixthis",
+"clthereisnofile",
+"cl�oo",
+"cl?"
 ];
 /* =====================================================
    FAVOURITES
@@ -3441,7 +3257,6 @@ function toggleFav(file) {
   saveFavs(favs);
   renderFavsSection();
   updateSidebarFavBtn();
-  // update any star button for this file across the page
   document.querySelectorAll(`.star-btn[data-file="${CSS.escape(file)}"]`).forEach(b => {
     b.textContent = isFav(file) ? '★' : '☆';
     b.classList.toggle('starred', isFav(file));
@@ -3450,11 +3265,9 @@ function toggleFav(file) {
 
 function buildGameClickHandler(file) {
   return () => {
-    // Prevent double-click from stacking two fetches / two loaders
     if (window._gameLoading) return;
     window._gameLoading = true;
     const name = file.includes('.') && file.lastIndexOf('.') > 0 ? file : file + '.html';
-    // Launch animation overlay
     let loader = document.getElementById('game-loader');
     if (!loader) {
       loader = document.createElement('div');
@@ -3472,7 +3285,6 @@ function buildGameClickHandler(file) {
         if (msg) { const t = document.createElement('div'); t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(239,68,68,.9);color:#fff;padding:10px 20px;border-radius:10px;font-family:Outfit,sans-serif;font-size:13px;z-index:999999;'; t.textContent = msg; document.body.appendChild(t); setTimeout(()=>t.remove(),4000); }
       }, 350);
     };
-    // 15s timeout — avoids hanging loader if CDN is slow
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 15000);
     const _srcBase = (window.GAME_BASE_URL || 'https://google-drive-hub.pages.dev').replace(/\/$/, '');
@@ -3484,7 +3296,6 @@ function buildGameClickHandler(file) {
         const base = _srcBase + '/';
         const proxy = `https://dawn-meadow-7e02.snalebob67.workers.dev`;
 
-        // Rewrite all cdn.jsdelivr.net references to go through our Cloudflare Worker proxy
         text = text.replace(/https?:\/\/cdn\.jsdelivr\.net/g, proxy);
 
         const w = window.open('about:blank', '_blank');
@@ -3541,7 +3352,6 @@ function renderFavsSection() {
   section.appendChild(header);
   section.appendChild(grid);
 
-  // transform new buttons into cards
   grid.querySelectorAll('input[type="button"]').forEach(btn => transformButtonToCard(btn));
 }
 
@@ -3606,7 +3416,6 @@ function generateAllSections() {
       chevron.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
     };
 
-    // Show skeletons as placeholders (reserve height so page doesn't jump)
     const skCount = Math.min(filesByChar[char].length, 6);
     for (let i = 0; i < skCount; i++) {
       const sk = document.createElement('div');
@@ -3619,7 +3428,6 @@ function generateAllSections() {
     section.appendChild(grid);
     container.appendChild(section);
 
-    // Lazy-render: only build real cards when the section scrolls into view
     const sectionFiles = filesByChar[char];
     let rendered = false;
 
@@ -3630,7 +3438,7 @@ function generateAllSections() {
       let idx = 0;
       function renderChunk() {
         const end = Math.min(idx + CHUNK, sectionFiles.length);
-        if (idx === 0) grid.innerHTML = ''; // clear skeletons on first chunk
+        if (idx === 0) grid.innerHTML = ''; 
         const frag = document.createDocumentFragment();
         for (; idx < end; idx++) {
           const btn = document.createElement('input');
@@ -3642,7 +3450,7 @@ function generateAllSections() {
         grid.appendChild(frag);
         if (idx < sectionFiles.length) {
           if (immediate) {
-            renderChunk(); // finish synchronously so search sees every card right away
+            renderChunk(); 
           } else {
             setTimeout(renderChunk, 0);
           }
@@ -3651,14 +3459,8 @@ function generateAllSections() {
       renderChunk();
     }
 
-    // Expose so filterGames can force-render if user searches an unrendered section.
-    // Pass `true` to render every card synchronously (used by search) instead of
-    // yielding between 30-card chunks — otherwise filterGames runs its DOM query
-    // before later chunks exist and misses matches past the first 30 in a section.
     grid._lazyRender = renderCards;
 
-    // Use IntersectionObserver with a generous rootMargin so cards appear
-    // before the user actually reaches the section (feels instant)
     if ('IntersectionObserver' in window) {
       const obs = new IntersectionObserver((entries, observer) => {
         if (entries[0].isIntersecting) {
@@ -3668,7 +3470,6 @@ function generateAllSections() {
       }, { rootMargin: '400px 0px' });
       obs.observe(section);
     } else {
-      // Fallback for browsers without IntersectionObserver
       const delay = allChars.indexOf(char) * 20;
       setTimeout(renderCards, delay);
     }
@@ -3692,7 +3493,6 @@ function updateSidebarFavBtn() {
 function generateSidebar(allChars, filesByChar) {
   const sidebar = document.getElementById('sidebar');
 
-  // ★ Favorites button — always first
   const favBtn = document.createElement('button');
   favBtn.className = 'sidebar-btn';
   favBtn.id = 'sidebar-fav-btn';
@@ -3713,7 +3513,6 @@ function generateSidebar(allChars, filesByChar) {
   };
   sidebar.appendChild(favBtn);
 
-  // Separator
   const sep = document.createElement('div');
   sep.style.cssText = 'width:32px;height:1px;background:rgba(56,189,248,0.15);margin:4px 0;flex-shrink:0;';
   sidebar.appendChild(sep);
@@ -3735,20 +3534,11 @@ generateAllSections();
 /* =====================================================
    ENHANCED SECURITY & ANTI-INSPECT
 ===================================================== */
-// 1. Disable Right-Click (Context Menu)
 document.addEventListener('contextmenu', (e) => e.preventDefault());
-// 2. Disable Key Combinations
 document.addEventListener('keydown', (e) => {
-    // Check for:
-    // F12 (123)
-    // Ctrl+Shift+I (Inspect)
-    // Ctrl+Shift+J (Console)
-    // Ctrl+Shift+C (Element Selector)
-    // Ctrl+U (View Source)
-    // Ctrl+S (Save Page)
     if (
-        e.keyCode === 123 || 
-        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
+        e.keyCode === 123 ||
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
         (e.ctrlKey && e.keyCode === 85) ||
         (e.ctrlKey && e.keyCode === 83)
     ) {
@@ -3756,27 +3546,20 @@ document.addEventListener('keydown', (e) => {
         return false;
     }
 });
-// 3. The "Debugger Trap"
-// This pauses the browser execution if the DevTools are opened.
-// It creates an infinite loop that triggers only when the console is active.
 (function() {
     const tester = setInterval(() => {
         const start = performance.now();
         debugger; 
         const end = performance.now();
         if (end - start > 100) {
-            // If the debugger took more than 100ms to clear, 
-            // DevTools are likely open.
             console.clear();
-            // Dev tools message blocked by security.js
         }
     }, 1000);
 })();
 // ==============================
-// SEARCH + UI LOGIC
 // ==============================
 document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('searchInput'); 
+    const searchInput = document.getElementById('searchInput');
     const clearBtn    = document.getElementById('search-clear');
     const noResults   = document.getElementById('no-results');
     const noTerm      = document.getElementById('no-results-term');
@@ -3801,7 +3584,6 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.addEventListener('focus', positionDropdown);
     window.addEventListener('resize', () => { if (dropdown.classList.contains('visible')) positionDropdown(); });
 
-    // Hide dropdown when the user scrolls (search bar moves away)
     const _mainScroller = document.querySelector('.main-content');
     if (_mainScroller) {
         _mainScroller.addEventListener('scroll', () => {
@@ -3816,7 +3598,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: true });
     }
 
-    // Focus styling
     searchInput.addEventListener('focus', () => {
         if (searchWrap) searchWrap.style.borderColor = 'rgba(var(--accent-rgb), 0.8)';
         const q = searchInput.value.trim();
@@ -3859,7 +3640,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Input handling — debounced
     let _searchDebounce = null;
     searchInput.addEventListener('input', () => {
         const q = searchInput.value.trim().toLowerCase();
@@ -3885,7 +3665,6 @@ document.addEventListener('DOMContentLoaded', () => {
         filterGames('');
     });
 
-    // Ctrl+F shortcut override
     document.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
@@ -3896,7 +3675,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showDropdown(q) {
         if (!q) { hideDropdown(); return; }
-        // Search the full files array (covers unrendered lazy sections too)
         const matches = [];
         const seenFiles = new Set();
         for (const file of files) {
@@ -3926,7 +3704,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const nameEl = document.createElement('div');
             nameEl.className = 'search-drop-name';
-            // Highlight matching portion
             const lowerDisplay = display.toLowerCase();
             const qi = lowerDisplay.indexOf(q);
             if (qi >= 0) {
@@ -3938,7 +3715,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 nameEl.textContent = display;
             }
 
-            // Add favorite star
             const star = document.createElement('div');
             star.className = 'favorite-star';
             star.textContent = isFav(file) ? '★' : '☆';
@@ -4001,7 +3777,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function filterGames(q) {
-        // If searching, force-render any sections still showing skeletons
         if (q) {
             document.querySelectorAll('.letter-section').forEach(section => {
                 if (section.querySelector('.game-card-skeleton')) {
@@ -4029,11 +3804,10 @@ document.addEventListener('DOMContentLoaded', () => {
             section.style.display = sectionVisible === 0 ? 'none' : '';
             totalVisible += sectionVisible;
 
-            // Update count badge: show "X / total" when searching, just total when not
             const badge = section.querySelector('.section-count');
             if (badge) {
                 const total = parseInt(badge.dataset.total || items.length, 10);
-                if (!badge.dataset.total) badge.dataset.total = items.length; // store on first run
+                if (!badge.dataset.total) badge.dataset.total = items.length; 
                 badge.textContent = q ? `${sectionVisible} / ${total}` : total;
             }
         });
@@ -4044,7 +3818,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // LOADING PROGRESS BAR
     const bar = document.getElementById('progress-bar');
     if (bar) {
         let progress = 0;
@@ -4075,7 +3848,12 @@ document.addEventListener('DOMContentLoaded', () => {
         burgerBtn.title = 'Toggle sidebar';
         burgerBtn.innerHTML = BURGER_ICON;
         document.body.appendChild(burgerBtn);
-        burgerBtn.style.cssText = 'position:fixed;top:14px;left:13px;z-index:10001;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(8,15,30,0.94);border:1px solid rgba(56,189,248,0.25);color:rgba(56,189,248,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+        // Layout-only inline styles here -- colors are intentionally left to
+        // the #burger-btn CSS rule (which uses var(--accent-rgb) and rethemes
+        // correctly). Hardcoding color here previously overrode the themed
+        // rule via inline-style specificity, so the button never matched the
+        // active theme except on :hover (which uses !important).
+        burgerBtn.style.cssText = 'position:fixed;top:14px;left:13px;z-index:10001;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;';
 
         const sidebar = document.getElementById('sidebar');
         const STORAGE_KEY = 'sidebar_collapsed';
@@ -4132,10 +3910,44 @@ function buildGearPanel() {
     const savedFont  = localStorage.getItem('setting_font') || 'medium';
     const savedTab   = localStorage.getItem('setting_active_tab') || 'display';
 
-    // Load saved spiderweb tuning
+    const DEFAULT_TAB_TITLE = 'Home - Google Drive';
+    const DEFAULT_TAB_ICON  = 'https://ssl.gstatic.com/docs/doclist/images/drive_favicon_2026_32dp.png';
+    const savedTabTitle = localStorage.getItem('setting_tab_title') || '';
+    const savedTabIcon  = localStorage.getItem('setting_tab_icon')  || '';
+
+    function setTabIdentity(title, iconHref) {
+        function applyTo(doc) {
+            if (title != null) doc.title = title;
+            if (iconHref != null) {
+                let link = doc.querySelector('link[rel="icon"]');
+                if (!link) {
+                    link = doc.createElement('link');
+                    link.rel = 'icon';
+                    doc.head.appendChild(link);
+                }
+                link.type = 'image/png';
+                link.href = iconHref;
+            }
+        }
+        applyTo(document);
+        // When running inside an iframe (about:blank wrapper), Chrome silently
+        // ignores direct document.title writes on the parent about:blank window.
+        // Instead we postMessage to the parent; myhub.html listens and applies it.
+        if (window.parent !== window || window.top !== window) {
+            try {
+                var _target = (window.parent !== window) ? window.parent : window.top;
+                _target.postMessage({ type: '_clocker_tab_identity', title: title, icon: iconHref }, '*');
+            } catch (_e) {}
+        }
+    }
+
+    if (savedTabTitle || savedTabIcon) {
+        setTabIdentity(savedTabTitle || null, savedTabIcon || null);
+    }
+
     const swSpeed = parseFloat(localStorage.getItem('setting_sw_speed') || '1.0');
     const swNodes = parseInt(localStorage.getItem('setting_sw_nodes')   || '90',  10);
-    const swDist  = parseInt(localStorage.getItem('setting_sw_dist')    || '130', 10);
+    const swDist = parseInt(localStorage.getItem('setting_sw_dist') || '130', 10);
 
     if (!spiderOn) { const c = document.getElementById('spiderweb'); if(c) c.style.display='none'; }
     if (compactOn) document.body.classList.add('compact-mode');
@@ -4146,8 +3958,8 @@ function buildGearPanel() {
     window._sw_speed = swSpeed;
     window._sw_nodes = swNodes;
     window._sw_dist  = swDist;
+    if (typeof window._sw_rebuild === 'function') window._sw_rebuild();
 
-    // Inject tabbed panel styles
     const tabStyle = document.createElement('style');
     tabStyle.textContent = `
     #settings-panel { width: 260px !important; padding: 0 !important; }
@@ -4177,6 +3989,15 @@ function buildGearPanel() {
     .sw-range::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:rgba(var(--accent-rgb),1); border:none; cursor:pointer; }
     .sw-reset { width:100%; margin-top:8px; padding:5px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.45); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; transition:all .15s; letter-spacing:.3px; }
     .sw-reset:hover { background:rgba(var(--accent-rgb),.15); color:rgba(255,255,255,.8); }
+    .sp-text-input { width:100%; padding:6px 8px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.9); font-size:11px; font-family:Outfit,sans-serif; outline:none; box-sizing:border-box; }
+    .sp-text-input:focus { border-color:rgba(var(--accent-rgb),.5); background:rgba(var(--accent-rgb),.1); }
+    .sp-file-btn { width:100%; padding:6px; margin-top:8px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.65); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; text-align:center; transition:all .15s; }
+    .sp-file-btn:hover { background:rgba(var(--accent-rgb),.15); color:rgba(255,255,255,.9); }
+    .sp-icon-preview { width:26px; height:26px; border-radius:5px; object-fit:cover; border:1px solid rgba(var(--accent-rgb),.25); flex-shrink:0; background:rgba(0,0,0,.2); }
+    .sp-preset-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:2px; }
+    .sp-preset-btn { padding:7px 4px; border-radius:6px; border:1px solid rgba(var(--accent-rgb),.2); background:rgba(var(--accent-rgb),.06); color:rgba(255,255,255,.75); font-size:10px; font-family:Outfit,sans-serif; cursor:pointer; transition:all .15s; text-align:center; }
+    .sp-preset-btn:hover { background:rgba(var(--accent-rgb),.15); color:#fff; border-color:rgba(var(--accent-rgb),.4); }
+    .sp-preset-btn.active { background:rgba(var(--accent-rgb),.28); border-color:rgba(var(--accent-rgb),.65); color:#fff; }
     `;
     document.head.appendChild(tabStyle);
 
@@ -4193,6 +4014,7 @@ function buildGearPanel() {
             <button class="sp-tab${savedTab==='layout'?' active':''}" data-tab="layout">Layout</button>
             <button class="sp-tab${savedTab==='theme'?' active':''}" data-tab="theme">Theme</button>
             <button class="sp-tab${savedTab==='web'?' active':''}" data-tab="web">Web</button>
+            <button class="sp-tab${savedTab==='tab'?' active':''}" data-tab="tab">Tab</button>
         </div>
         <div class="sp-body">
 
@@ -4274,6 +4096,23 @@ function buildGearPanel() {
                 <button class="sw-reset" id="sw-reset">Reset defaults</button>
             </div>
 
+            <!-- TAB TAB (browser tab title/icon) -->
+            <div class="sp-pane${savedTab==='tab'?' active':''}" data-pane="tab">
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Presets</div>
+                <div class="sp-preset-grid" id="tab-preset-grid"></div>
+                <div class="sp-divider"></div>
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Custom Title</div>
+                <input type="text" class="sp-text-input" id="tab-title-input" placeholder="Home - Google Drive" maxlength="60">
+                <div class="sp-divider"></div>
+                <div class="sp-row-label" style="margin-bottom:5px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;">Custom Icon</div>
+                <div class="sp-row" style="margin-bottom:2px;">
+                    <img class="sp-icon-preview" id="tab-icon-preview">
+                    <span class="sp-row-label" style="flex:1;text-align:right;font-size:10px;opacity:.5;">Preview</span>
+                </div>
+                <button class="sp-file-btn" id="tab-icon-pick-btn">Choose Image...</button>
+                <input type="file" id="tab-icon-file" accept="image/*" style="display:none;">
+            </div>
+
         </div>
     `;
     document.body.appendChild(panel);
@@ -4282,7 +4121,6 @@ function buildGearPanel() {
         buildThemeButtons(panel.querySelector('#theme-switcher-wrap'));
     }
 
-    // Spiderweb live controls
     (function() {
         function wire() {
             var speedEl = panel.querySelector('#sw-speed');
@@ -4324,7 +4162,99 @@ function buildGearPanel() {
         wire();
     })();
 
-    // Tab switching
+    (function() {
+        const titleInput   = panel.querySelector('#tab-title-input');
+        const iconPreview = panel.querySelector('#tab-icon-preview');
+        const pickBtn      = panel.querySelector('#tab-icon-pick-btn');
+        const fileInput    = panel.querySelector('#tab-icon-file');
+        const presetGrid   = panel.querySelector('#tab-preset-grid');
+        if (!titleInput) return;
+
+        const TAB_PRESETS = [
+            { key: 'drive',     label: 'Drive',     title: 'Home - Google Drive',                   icon: DEFAULT_TAB_ICON },
+            { key: 'sheets',    label: 'Sheets',     title: 'Untitled spreadsheet - Google Sheets',    icon: 'https://ssl.gstatic.com/docs/spreadsheets/spreadsheets-2026-v3.ico' },
+            { key: 'docs',      label: 'Docs',       title: 'Untitled document - Google Docs',       icon: 'https://ssl.gstatic.com/docs/documents/images/docs-favicon-2026-v2.ico' },
+            { key: 'slides',    label: 'Slides',     title: 'Untitled presentation - Google Slides', icon: 'https://ssl.gstatic.com/docs/presentations/images/favicon-2026-v2.ico' },
+            { key: 'calendar',  label: 'Calendar',   title: 'Google Calendar',                       icon: 'https://www.gstatic.com/companion/icon_assets/calendar_2026_2x.png' },
+            { key: 'classroom', label: 'Classroom',  title: 'Home - Classroom',                             icon: 'https://ssl.gstatic.com/classroom/favicon.png' },
+            { key: 'canvas',    label: 'Canvas',     title: 'Templates - Canvas',                             icon: 'https://static.canva.com/domain-assets/canva/static/images/android-192x192-2.png' },
+            { key: 'schoology', label: 'schoology',  title: 'schoology',                             icon: 'https://asset-cdn.schoology.com/sites/all/themes/schoology_theme/favicon.ico' }
+        ];
+
+        function setLive(title, icon) {
+            setTabIdentity(title, icon);
+            iconPreview.src = icon;
+        }
+
+        function markActivePreset() {
+            const curTitle = localStorage.getItem('setting_tab_title') || DEFAULT_TAB_TITLE;
+            const curIcon  = localStorage.getItem('setting_tab_icon')  || DEFAULT_TAB_ICON;
+            presetGrid.querySelectorAll('.sp-preset-btn').forEach(function(btn) {
+                const p = TAB_PRESETS.find(function(x) { return x.key === btn.dataset.preset; });
+                btn.classList.toggle('active', !!p && p.title === curTitle && p.icon === curIcon);
+            });
+        }
+
+        presetGrid.innerHTML = TAB_PRESETS.map(function(p) {
+            return '<button class="sp-preset-btn" data-preset="' + p.key + '">' + p.label + '</button>';
+        }).join('');
+
+        presetGrid.querySelectorAll('.sp-preset-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const p = TAB_PRESETS.find(function(x) { return x.key === btn.dataset.preset; });
+                if (!p) return;
+                setLive(p.title, p.icon);
+                titleInput.value = p.title;
+                localStorage.setItem('setting_tab_title', p.title);
+                localStorage.setItem('setting_tab_icon', p.icon);
+                markActivePreset();
+            });
+        });
+
+        titleInput.value  = savedTabTitle;
+        iconPreview.src   = savedTabIcon || DEFAULT_TAB_ICON;
+        markActivePreset();
+
+        titleInput.addEventListener('input', function() {
+            const v = titleInput.value.trim();
+            setTabIdentity(v || DEFAULT_TAB_TITLE, null);
+            if (v) localStorage.setItem('setting_tab_title', v);
+            else localStorage.removeItem('setting_tab_title');
+            markActivePreset();
+        });
+
+        pickBtn.addEventListener('click', function() { fileInput.click(); });
+
+        fileInput.addEventListener('change', function() {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const SIZE = 64;
+                    const c = document.createElement('canvas');
+                    c.width = SIZE; c.height = SIZE;
+                    const ctx = c.getContext('2d');
+                    const scale = Math.max(SIZE / img.width, SIZE / img.height);
+                    const w = img.width * scale, h = img.height * scale;
+                    ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+                    const dataUrl = c.toDataURL('image/png');
+
+                    setTabIdentity(null, dataUrl);
+                    iconPreview.src = dataUrl;
+                    try {
+                        localStorage.setItem('setting_tab_icon', dataUrl);
+                    } catch (err) {
+                    }
+                    markActivePreset();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    })();
+
     panel.querySelectorAll('.sp-tab').forEach(tab => {
         tab.addEventListener('click', function() {
             const t = this.dataset.tab;
@@ -4393,7 +4323,6 @@ function buildGearPanel() {
     });
 }
 
-/* Apply card column count to all game grids */
 function applyColumns(v) {
     const style = document.getElementById('setting-cols-style') || (() => {
         const s = document.createElement('style');
@@ -4404,7 +4333,6 @@ function applyColumns(v) {
     style.textContent = v === 'auto' ? '' : `.buttons-container { grid-template-columns: repeat(${v}, 1fr) !important; }`;
 }
 
-/* Apply font size to game card names */
 function applyFontSize(v) {
     const style = document.getElementById('setting-font-style') || (() => {
         const s = document.createElement('style');
@@ -4415,7 +4343,6 @@ function applyFontSize(v) {
     const sizes = { small: '0.72rem', medium: '0.82rem', large: '0.96rem' };
     style.textContent = `.game-card-name { font-size: ${sizes[v] || sizes.medium} !important; }`;
 }
-
 
 /* =====================================================
    SPIDERWEB BACKGROUND — bundled inline below
@@ -4441,9 +4368,6 @@ function updateClock(){
 updateClock();
 setInterval(updateClock,1000);
 
-
-
-
 /* =====================================================
    THEME SWITCHER — no-lag CSS-variable approach + richer palette
 ===================================================== */
@@ -4463,7 +4387,6 @@ setInterval(updateClock,1000);
     };
 
     /* ── One-time static <style> block — all rules use CSS vars only ── */
-    /* This never gets rewritten on theme change; only CSS vars update  */
     const staticStyle = document.createElement('style');
     staticStyle.id = 'theme-static';
     staticStyle.textContent = `
@@ -4514,15 +4437,13 @@ setInterval(updateClock,1000);
     `;
     document.head.appendChild(staticStyle);
 
-    // Thumbnail regen removed — CSS-based thumbs update instantly with CSS vars
-
     /* ── applyTheme: updates CSS vars only — card thumbs update instantly via CSS ── */
     function applyTheme(name) {
         const t = themes[name] || themes.blue;
         const root = document.documentElement;
         const [c1, c2, c3] = t.bg.split(',');
         root.style.setProperty('--accent-blue', t.hex);
-        root.style.setProperty('--accent-rgb',  t.rgb);
+        root.style.setProperty('--accent-rgb', t.rgb);
         root.style.setProperty('--card-bg',    `rgba(${t.card},0.6)`);
         root.style.setProperty('--sidebar-bg', `rgba(${t.card},0.94)`);
         root.style.setProperty('--theme-bg',
@@ -4533,7 +4454,6 @@ setInterval(updateClock,1000);
         document.querySelectorAll('.theme-btn').forEach(b =>
             b.classList.toggle('active', b.dataset.theme === name)
         );
-        // No regen needed — all thumbs use rgba(var(--accent-rgb),...) and update instantly
     }
 
     /* ── Build theme buttons into the gear settings panel ── */
@@ -4558,12 +4478,10 @@ setInterval(updateClock,1000);
 
     /* ── Custom colour from hex — derives dark bg tones ── */
     function applyCustomColor(hex) {
-        // Parse hex to r,g,b
         const r = parseInt(hex.slice(1,3),16);
         const g = parseInt(hex.slice(3,5),16);
         const b = parseInt(hex.slice(5,7),16);
         const rgb = `${r},${g},${b}`;
-        // Build dark bg: very dark tinted versions of the hue
         const darken = (ch, f) => Math.max(0, Math.round(ch * f));
         const d1 = `#${[r,g,b].map(c=>darken(c,.07).toString(16).padStart(2,'0')).join('')}`;
         const d2 = `#${[r,g,b].map(c=>darken(c,.10).toString(16).padStart(2,'0')).join('')}`;
@@ -4581,7 +4499,6 @@ setInterval(updateClock,1000);
         localStorage.setItem('siteTheme', 'custom');
         localStorage.setItem('siteThemeCustomHex', hex);
         document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-        // Update the custom color pill
         const pill = document.querySelector('.theme-btn-wheel-pill');
         if (pill) {
             const sw = pill.querySelector('.wheel-swatch');
@@ -4595,7 +4512,6 @@ setInterval(updateClock,1000);
     function buildThemeButtons(container) {
         _buildThemeButtonsBase(container);
 
-        // Full-width custom color pill — sits below the swatch row
         const savedCustom = localStorage.getItem('siteThemeCustomHex') || '#38bdf8';
         const isCustom = localStorage.getItem('siteTheme') === 'custom';
 
@@ -4648,7 +4564,6 @@ setInterval(updateClock,1000);
     const switcher = document.getElementById('theme-switcher');
     if (switcher) { switcher.innerHTML = ''; }
 
-    // Restore custom colour on load
     const _savedTheme = localStorage.getItem('siteTheme');
     if (_savedTheme === 'custom') {
         const _savedHex = localStorage.getItem('siteThemeCustomHex');
@@ -4774,7 +4689,6 @@ function transformButtonToCard(btn) {
         card.classList.add('has-new-badge');
     }
 
-    // Star button
     const star = document.createElement('button');
     star.className = 'star-btn' + (isFav(file) ? ' starred' : '');
     star.dataset.file = file;
@@ -4815,7 +4729,6 @@ transformButtons();
         const nameEl = card.querySelector('.game-card-name');
         if (!nameEl) return;
 
-        // Only show if text is actually truncated
         if (nameEl.scrollWidth <= nameEl.clientWidth) return;
 
         clearTimeout(hideTimer);

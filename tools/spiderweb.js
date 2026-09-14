@@ -6,15 +6,23 @@
     let nodes = [], gridCols = 1, gridRows = 1, grid = [];
     let mouse = { x: -9999, y: -9999 };
 
-    const N     = 90;
-    const DIST  = 130;
+    function getCfg() {
+        return {
+            N:     window._sw_nodes != null ? window._sw_nodes : 45,
+            DIST:  window._sw_dist  != null ? window._sw_dist  : 130,
+            SPEED: window._sw_speed != null ? window._sw_speed : 1.0,
+        };
+    }
+
     const MDIST = 160;
     const CELL  = 130;
-    const FPS   = 60;
+    const FPS   = 30;
     const FRAME = 1000 / FPS;
     let lastT   = 0;
     let rafId   = null;
-    let hue     = 0;   // global hue that slowly cycles
+    let hue = 0;
+
+    window._sw_rebuild = function() { initNodes(); };
 
     function resize() {
         W = canvas.width  = window.innerWidth;
@@ -23,6 +31,7 @@
     }
 
     function initNodes() {
+        const { N } = getCfg();
         const cols  = Math.max(1, Math.ceil(Math.sqrt(N * W / H)));
         const rows  = Math.max(1, Math.ceil(N / cols));
         const cellW = W / cols, cellH = H / rows;
@@ -49,7 +58,10 @@
         nodes.forEach((n, i) => {
             const gx = Math.min((n.x / CELL) | 0, gridCols - 1);
             const gy = Math.min((n.y / CELL) | 0, gridRows - 1);
-            grid[gy * gridCols + gx].push(i);
+            const idx = gy * gridCols + gx;
+            if (grid[idx]) {
+                grid[idx].push(i);
+            }
         });
     }
 
@@ -60,7 +72,10 @@
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
             const nx = gx + dx, ny = gy + dy;
             if (nx < 0 || ny < 0 || nx >= gridCols || ny >= gridRows) continue;
-            for (const i of grid[ny * gridCols + nx]) out.push(i);
+            const idx = ny * gridCols + nx;
+            if (grid[idx]) {
+                for (const i of grid[idx]) out.push(i);
+            }
         }
         return out;
     }
@@ -76,15 +91,15 @@
         lastT = ts;
         if (!W || !H) return;
 
-        // Slowly cycle the global hue
         hue = (hue + 0.12 * dt) % 360;
 
         ctx.clearRect(0, 0, W, H);
 
-        // Move nodes
+        const { DIST, SPEED } = getCfg();
+
         for (const n of nodes) {
-            n.x += n.vx * dt;
-            n.y += n.vy * dt;
+            n.x += n.vx * dt * SPEED;
+            n.y += n.vy * dt * SPEED;
             n.ph    += .018 * dt;
             n.pulse += .04  * dt;
             if (n.x < 0 || n.x > W) n.vx *= -1;
@@ -100,7 +115,6 @@
 
         const DIST2 = DIST * DIST;
 
-        // Draw lines — gradient between each pair's hues
         for (let ai = 0; ai < nodes.length; ai++) {
             const a = nodes[ai];
             for (const bi of neighbors(a)) {
@@ -122,21 +136,17 @@
                 const ha = (hue + a.hueOff + 200) % 360;
                 const hb = (hue + b.hueOff + 200) % 360;
 
-                // Color gradient from node A to node B
-                const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-                grad.addColorStop(0, hslStr(ha, 90, 70, baseAlpha));
-                grad.addColorStop(1, hslStr(hb, 90, 70, baseAlpha));
+                const hMid = (ha + hb) / 2;
 
                 ctx.beginPath();
                 ctx.moveTo(a.x, a.y);
                 ctx.lineTo(b.x, b.y);
-                ctx.strokeStyle = grad;
+                ctx.strokeStyle = hslStr(hMid, 90, 70, baseAlpha);
                 ctx.lineWidth   = lineWidth;
                 ctx.stroke();
             }
         }
 
-        // Draw nodes — three-layer glow
         for (const n of nodes) {
             const mi    = Math.max(0, 1 - Math.hypot(n.x - mouse.x, n.y - mouse.y) / MDIST);
             const p     = Math.sin(n.ph)    * .5 + .5;
@@ -144,7 +154,6 @@
             const nh    = (hue + n.hueOff + 200) % 360;
             const r     = n.pr * (1 + p * .3 + mi * .8);
 
-            // Outer halo — only brightens near mouse
             if (mi > .05) {
                 ctx.beginPath();
                 ctx.arc(n.x, n.y, r * 3.5, 0, Math.PI * 2);
@@ -152,19 +161,16 @@
                 ctx.fill();
             }
 
-            // Mid glow
             ctx.beginPath();
             ctx.arc(n.x, n.y, r * 1.9, 0, Math.PI * 2);
             ctx.fillStyle = hslStr(nh, 90, 65, .08 + pulse * .06 + mi * .14);
             ctx.fill();
 
-            // Core dot
             ctx.beginPath();
             ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
             ctx.fillStyle = hslStr(nh, 95, 80, .45 + p * .28 + mi * .3);
             ctx.fill();
         }
-
 
     }
 

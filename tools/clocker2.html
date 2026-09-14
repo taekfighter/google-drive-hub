@@ -2,10 +2,22 @@
 <html lang="en">
 <head>
 
+  <!-- PANIC KEY — must be first, before anything else loads. -->
+  <script>
+  window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+          window._panicking = true; // tells the close-confirmation (in hub.js) to skip its prompt
+          window.location.replace("https://drive.google.com/drive/my-drive");
+      }
+  });
+  </script>
+
   <!-- Performance: resource hints -->
   <link rel="dns-prefetch" href="https://www.gstatic.com">
   <link rel="dns-prefetch" href="https://fonts.googleapis.com">
   <link rel="dns-prefetch" href="https://drive-portal-d7eb1-default-rtdb.firebaseio.com">
+  <link rel="dns-prefetch" href="https://drive.google.com">
+  <link rel="preconnect" href="https://drive.google.com">
   <link rel="preload" href="styles.css" as="style">
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-CBRC0YZ54S"></script>
@@ -82,7 +94,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="icon" type="image/png" href="https://ssl.gstatic.com/docs/doclist/images/drive_favicon_2026_32dp.png">
   <link rel="stylesheet" href="styles.css">
 
 </head>
@@ -268,6 +280,7 @@
 })();
 </script>
 
+<script src="spiderweb.js"></script>
 <script src="hub.js" defer></script>
 
 </body>
