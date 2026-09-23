@@ -1,0 +1,400 @@
+<!doctype html>
+<title>⚠️ ABANDONED PROJECT - DO NOT USE</title>
+<style>
+:root {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-danger: #fff5f5;
+  --bg-warning: #fffaf0;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-danger: #dc3545;
+  --text-warning: #ffc107;
+  --border-color: #dee2e6;
+  --danger-border: #f5c6cb;
+  --warning-border: #ffeaa7;
+  --shadow: 0 2px 4px rgba(0,0,0,0.1);
+  --radius: 8px;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 2rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --bg-danger: #2a1a1a;
+    --bg-warning: #2a241a;
+    --text-primary: #e9ecef;
+    --text-secondary: #adb5bd;
+    --text-danger: #f8d7da;
+    --text-warning: #ffeaa7;
+    --border-color: #495057;
+    --danger-border: #842029;
+    --warning-border: #664d03;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-danger: #2a1a1a;
+  --bg-warning: #2a241a;
+  --text-primary: #e9ecef;
+  --text-secondary: #adb5bd;
+  --text-danger: #f8d7da;
+  --text-warning: #ffeaa7;
+  --border-color: #495057;
+  --danger-border: #842029;
+  --warning-border: #664d03;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: var(--spacing-lg);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 2px solid var(--text-danger);
+}
+
+.warning-banner {
+  background: var(--bg-danger);
+  border: 2px solid var(--danger-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+
+.warning-icon {
+  font-size: 3rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.section {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--text-danger);
+}
+
+.section.warning {
+  border-left-color: var(--text-warning);
+  background: var(--bg-warning);
+}
+
+.section-title {
+  margin-top: 0;
+  color: var(--text-danger);
+  font-size: 1.5rem;
+}
+
+.section-title.warning {
+  color: var(--text-warning);
+}
+
+.badge-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-danger {
+  background: var(--text-danger);
+  color: white;
+}
+
+.badge-warning {
+  background: var(--text-warning);
+  color: #212529;
+}
+
+.badge-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-md) 0;
+}
+
+.table th, .table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table th {
+  background: var(--bg-primary);
+  font-weight: 600;
+}
+
+.table tr:hover {
+  background: var(--bg-primary);
+}
+
+.alternatives {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.alternative-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+}
+
+.footer {
+  text-align: center;
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+a {
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+ul {
+  padding-left: 1.5rem;
+}
+
+li {
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: var(--spacing-md);
+  }
+
+  .section {
+    padding: var(--spacing-md);
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+</style>
+
+<div class="container">
+  <div class="header">
+    <h1>🚨 ABANDONED PROJECT - DO NOT USE 🚨</h1>
+    <p class="badge-container">
+      <span class="badge badge-danger">Status: Abandoned</span>
+      <span class="badge badge-danger">Maintenance: None</span>
+      <span class="badge badge-danger">Security: Unsafe</span>
+      <span class="badge badge-warning">Last Updated: 2024</span>
+    </p>
+  </div>
+
+  <div class="warning-banner">
+    <div class="warning-icon">⚠️</div>
+    <h2 style="color: var(--text-danger); margin: 0;">THIS REPOSITORY IS NO LONGER MAINTAINED</h2>
+    <p><strong>DO NOT USE THIS CODE IN PRODUCTION OR ANY SENSITIVE ENVIRONMENT</strong></p>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Why You Should Avoid This Repository</h2>
+
+    <h3 style="color: var(--text-danger);">🔴 Security Risks</h3>
+    <ul>
+      <li><strong>Outdated dependencies</strong> with known vulnerabilities</li>
+      <li><strong>No security patches</strong> applied since 2024</li>
+      <li><strong>Potential exposure</strong> of sensitive data through Firebase configuration</li>
+      <li><strong>Untested and unmaintained</strong> authentication flows</li>
+    </ul>
+
+    <h3 style="color: var(--text-danger);">🔴 Technical Issues</h3>
+    <ul>
+      <li><strong>Broken functionality</strong> - many features no longer work</li>
+      <li><strong>Deprecated APIs</strong> - Firebase/Google Drive integrations likely broken</li>
+      <li><strong>No documentation</strong> - unclear how to set up or use</li>
+      <li><strong>Unstable codebase</strong> - contains experimental and incomplete features</li>
+    </ul>
+
+    <h3 style="color: var(--text-danger);">🔴 Legal & Compliance Concerns</h3>
+    <ul>
+      <li><strong>No license</strong> - unclear permissions for use</li>
+      <li><strong>No privacy policy</strong> - data handling practices undocumented</li>
+      <li><strong>Potential copyright issues</strong> - unclear ownership of included tools/files</li>
+      <li><strong>No compliance</strong> with modern security standards</li>
+    </ul>
+  </div>
+
+  <div class="section warning">
+    <h2 class="section-title warning">⚠️ WARNINGS ⚠️</h2>
+
+    <h3 style="color: var(--text-warning);">For Students/Educational Users:</h3>
+    <ul>
+      <li><strong>School administrators</strong> may block access to this type of content</li>
+      <li><strong>Network monitoring systems</strong> may flag this as inappropriate</li>
+      <li><strong>Using unblocked games</strong> at school may violate acceptable use policies</li>
+      <li><strong>Security software</strong> may detect malware or suspicious activity</li>
+    </ul>
+
+    <h3 style="color: var(--text-warning);">For Developers:</h3>
+    <ul>
+      <li><strong>Code quality is poor</strong> - not suitable for learning</li>
+      <li><strong>Security practices are outdated</strong> - do not use as reference</li>
+      <li><strong>Dependencies are unmaintained</strong> - creates technical debt</li>
+      <li><strong>Architecture is flawed</strong> - not following modern patterns</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Repository Analysis</h2>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Status</th>
+          <th>Risk Level</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firebase Configuration</td>
+          <td>⚠️ Outdated</td>
+          <td style="color: var(--text-danger);">HIGH</td>
+        </tr>
+        <tr>
+          <td>HTML/CSS/JavaScript</td>
+          <td>⚠️ Unmaintained</td>
+          <td style="color: var(--text-danger);">HIGH</td>
+        </tr>
+        <tr>
+          <td>Third-party Games</td>
+          <td>⚠️ Unverified</td>
+          <td style="color: var(--text-warning);">MEDIUM</td>
+        </tr>
+        <tr>
+          <td>CI/CD Pipelines</td>
+          <td>⚠️ Broken</td>
+          <td style="color: var(--text-danger);">HIGH</td>
+        </tr>
+        <tr>
+          <td>Security Configuration</td>
+          <td>❌ Missing</td>
+          <td style="color: var(--text-danger);">CRITICAL</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">🛡️ Alternatives (Actively Maintained & Secure)</h2>
+
+    <div class="alternatives">
+      <div class="alternative-card">
+        <h3>🎮 Game Development</h3>
+        <ul>
+          <li><a href="https://phaser.io/" target="_blank">Phaser</a> - Modern HTML5 game framework</li>
+          <li><a href="https://threejs.org/" target="_blank">Three.js</a> - 3D JavaScript library</li>
+          <li><a href="https://godotengine.org/" target="_blank">Godot</a> - Open source game engine</li>
+        </ul>
+      </div>
+
+      <div class="alternative-card">
+        <h3>🌐 Web Applications</h3>
+        <ul>
+          <li><a href="https://vitejs.dev/" target="_blank">Vite</a> - Modern build tool</li>
+          <li><a href="https://nextjs.org/" target="_blank">Next.js</a> - React framework</li>
+          <li><a href="https://github.com/firebase/samples" target="_blank">Firebase Samples</a> - Maintained examples</li>
+        </ul>
+      </div>
+
+      <div class="alternative-card">
+        <h3>📚 Educational Games</h3>
+        <ul>
+          <li><a href="https://www.khanacademy.org/computing/computer-programming" target="_blank">Khan Academy</a></li>
+          <li><a href="https://code.org/" target="_blank">Code.org</a></li>
+          <li><a href="https://scratch.mit.edu/" target="_blank">Scratch</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section warning">
+    <h2 class="section-title warning">📞 Contact (No Support Available)</h2>
+    <p><strong>This project is abandoned. No support will be provided.</strong></p>
+    <ul>
+      <li>❌ Issues will not be addressed</li>
+      <li>❌ Pull requests will not be reviewed</li>
+      <li>❌ Questions will not be answered</li>
+      <li>❌ Security reports will not be acted upon</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <p><strong>⚠️ THIS REPOSITORY IS ARCHIVED AND SHOULD NOT BE USED ⚠️</strong></p>
+    <p>Use at your own risk. No guarantees of functionality or safety.</p>
+    <p style="font-size: 0.75rem; margin-top: 1rem;">Repository: google-drive-hub • Owner: taekfighter • Status: Abandoned</p>
+  </div>
+</div>
+
+<script>
+  // Theme switching support
+  document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+
+    // Auto-detect system theme
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+    if (!savedTheme && prefersDark.matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
+    // Update theme when system preference changes
+    prefersDark.addEventListener('change', (e) => {
+      if (!localStorage.getItem('theme')) {
+        document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+      }
+    });
+  });
+</script>

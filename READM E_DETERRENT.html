@@ -1,0 +1,575 @@
+<!doctype html>
+<title>Google Drive Hub - Abandoned Project</title>
+<style>
+:root {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-danger: #fff5f5;
+  --bg-warning: #fffaf0;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-danger: #dc3545;
+  --text-warning: #ffc107;
+  --border-color: #dee2e6;
+  --danger-border: #f5c6cb;
+  --warning-border: #ffeaa7;
+  --shadow: 0 2px 4px rgba(0,0,0,0.1);
+  --radius: 8px;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 2rem;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-primary: #0f1419;
+    --bg-secondary: #1a2028;
+    --bg-danger: #2a1a1a;
+    --bg-warning: #2a241a;
+    --text-primary: #e9ecef;
+    --text-secondary: #adb5bd;
+    --text-danger: #f8d7da;
+    --text-warning: #ffeaa7;
+    --border-color: #2d3748;
+    --danger-border: #842029;
+    --warning-border: #664d03;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-primary: #0f1419;
+  --bg-secondary: #1a2028;
+  --bg-danger: #2a1a1a;
+  --bg-warning: #2a241a;
+  --text-primary: #e9ecef;
+  --text-secondary: #adb5bd;
+  --text-danger: #f8d7da;
+  --text-warning: #ffeaa7;
+  --border-color: #2d3748;
+  --danger-border: #842029;
+  --warning-border: #664d03;
+}
+
+body {
+  font-family: var(--font-body);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.page-wrapper {
+  max-width: 800px;
+  width: 100%;
+  padding: 0 var(--spacing-md);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.header {
+  text-align: center;
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-lg) 0;
+  border-bottom: 3px solid var(--text-danger);
+  position: relative;
+}
+
+.header::before {
+  content: '⚠️';
+  font-size: 4rem;
+  display: block;
+  margin-bottom: var(--spacing-md);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.warning-banner {
+  background: linear-gradient(135deg, var(--bg-danger) 0%, #ffdddd 100%);
+  border: 2px solid var(--danger-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  margin: var(--spacing-lg) 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.warning-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--text-danger) 0%, transparent 100%);
+  animation: slide 3s linear infinite;
+}
+
+@keyframes slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.section {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  margin: var(--spacing-lg) 0;
+  box-shadow: var(--shadow);
+  border-left: 6px solid var(--text-danger);
+  position: relative;
+}
+
+.section::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  background: var(--text-danger);
+  border-bottom-left-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+}
+
+.section.warning {
+  border-left-color: var(--text-warning);
+  background: linear-gradient(135deg, var(--bg-warning) 0%, #fffaf0 100%);
+}
+
+.section-title {
+  margin-top: 0;
+  color: var(--text-danger);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin-bottom: var(--spacing-md);
+  text-transform: uppercase;
+  letter-spacing: -0.5px;
+}
+
+.section-title.warning {
+  color: var(--text-warning);
+}
+
+.section-subtitle {
+  color: var(--text-danger);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+}
+
+.badge-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.75px;
+  border: 2px solid transparent;
+}
+
+.badge-danger {
+  background: var(--text-danger);
+  color: white;
+  border-color: var(--danger-border);
+}
+
+.badge-warning {
+  background: var(--text-warning);
+  color: #212529;
+  border-color: var(--warning-border);
+}
+
+.badge-info {
+  background: #17a2b8;
+  color: white;
+  border-color: #17a2b8;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-md) 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.table th, .table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table th {
+  background: var(--bg-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: 0.5px;
+}
+
+.table tr:hover {
+  background: var(--bg-primary);
+}
+
+.alternatives {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+.alternative-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.alternative-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.footer {
+  text-align: center;
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-lg) 0;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  width: 100%;
+}
+
+a {
+  color: #0d6efd;
+  text-decoration: none;
+  font-weight: 600;
+  position: relative;
+}
+
+a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #0d6efd;
+  transition: width 0.2s ease;
+}
+
+a:hover::after {
+  width: 100%;
+}
+
+ul {
+  padding-left: 1.5rem;
+  margin: var(--spacing-sm) 0;
+}
+
+li {
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+li::before {
+  content: '•';
+  position: absolute;
+  left: -1.5rem;
+  color: var(--text-danger);
+  font-weight: bold;
+}
+
+.warning-icon {
+  font-size: 2rem;
+  margin-right: var(--spacing-sm);
+  vertical-align: middle;
+}
+
+.highlight {
+  background: linear-gradient(120deg, rgba(255,0,0,0.1) 0%, rgba(255,0,0,0.2) 100%);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .section {
+    padding: var(--spacing-md);
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .alternatives {
+    grid-template-columns: 1fr;
+  }
+
+  .header::before {
+    font-size: 3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --spacing-sm: 0.375rem;
+    --spacing-md: 0.75rem;
+    --spacing-lg: 1.25rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .badge {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  .warning-banner::before,
+  .header::before,
+  a::after {
+    display: none;
+  }
+
+  .alternative-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+</style>
+
+<div class="page-wrapper">
+  <div class="header">
+    <h1 style="font-size: 2.5rem; margin: 0 0 var(--spacing-sm) 0; font-family: var(--font-display);">🚨 GOOGLE DRIVE HUB<br><span style="font-size: 1.5rem; display: block; margin-top: var(--spacing-sm);">ABANDONED PROJECT - DO NOT USE</span></h1>
+    <p class="badge-container">
+      <span class="badge badge-danger">Status: Abandoned</span>
+      <span class="badge badge-danger">Maintenance: None</span>
+      <span class="badge badge-danger">Security: Unsafe</span>
+      <span class="badge badge-warning">Last Updated: 2024</span>
+    </p>
+  </div>
+
+  <div class="warning-banner">
+    <h2 style="color: var(--text-danger); margin: 0; font-family: var(--font-display); font-weight: 800;">⚠️ THIS REPOSITORY IS NO LONGER MAINTAINED ⚠️</h2>
+    <p style="margin: var(--spacing-sm) 0 0 0; font-weight: 700;"><strong>DO NOT USE THIS CODE IN PRODUCTION OR ANY SENSITIVE ENVIRONMENT</strong></p>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Why You Should Avoid This Repository</h2>
+
+    <h3 class="section-subtitle">🔴 Security Risks</h3>
+    <ul>
+      <li><span class="highlight">Outdated dependencies</span> with known vulnerabilities</li>
+      <li><span class="highlight">No security patches</span> applied since 2024</li>
+      <li><span class="highlight">Potential exposure</span> of sensitive data through Firebase configuration</li>
+      <li><span class="highlight">Untested and unmaintained</span> authentication flows</li>
+    </ul>
+
+    <h3 class="section-subtitle">🔴 Technical Issues</h3>
+    <ul>
+      <li><span class="highlight">Broken functionality</span> - many features no longer work</li>
+      <li><span class="highlight">Deprecated APIs</span> - Firebase/Google Drive integrations likely broken</li>
+      <li><span class="highlight">No documentation</span> - unclear how to set up or use</li>
+      <li><span class="highlight">Unstable codebase</span> - contains experimental and incomplete features</li>
+    </ul>
+
+    <h3 class="section-subtitle">🔴 Legal & Compliance Concerns</h3>
+    <ul>
+      <li><span class="highlight">No license</span> - unclear permissions for use</li>
+      <li><span class="highlight">No privacy policy</span> - data handling practices undocumented</li>
+      <li><span class="highlight">Potential copyright issues</span> - unclear ownership of included tools/files</li>
+      <li><span class="highlight">No compliance</span> with modern security standards</li>
+    </ul>
+  </div>
+
+  <div class="section warning">
+    <h2 class="section-title warning">⚠️ WARNINGS ⚠️</h2>
+
+    <h3 class="section-subtitle" style="color: var(--text-warning);">For Students/Educational Users:</h3>
+    <ul>
+      <li><span class="highlight">School administrators</span> may block access to this type of content</li>
+      <li><span class="highlight">Network monitoring systems</span> may flag this as inappropriate</li>
+      <li><span class="highlight">Using unblocked games</span> at school may violate acceptable use policies</li>
+      <li><span class="highlight">Security software</span> may detect malware or suspicious activity</li>
+    </ul>
+
+    <h3 class="section-subtitle" style="color: var(--text-warning);">For Developers:</h3>
+    <ul>
+      <li><span class="highlight">Code quality is poor</span> - not suitable for learning</li>
+      <li><span class="highlight">Security practices are outdated</span> - do not use as reference</li>
+      <li><span class="highlight">Dependencies are unmaintained</span> - creates technical debt</li>
+      <li><span class="highlight">Architecture is flawed</span> - not following modern patterns</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Repository Analysis</h2>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Status</th>
+          <th>Risk Level</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firebase Configuration</td>
+          <td><span class="warning-icon">⚠️</span> Outdated</td>
+          <td><span style="color: var(--text-danger); font-weight: 700;">HIGH</span></td>
+        </tr>
+        <tr>
+          <td>HTML/CSS/JavaScript</td>
+          <td><span class="warning-icon">⚠️</span> Unmaintained</td>
+          <td><span style="color: var(--text-danger); font-weight: 700;">HIGH</span></td>
+        </tr>
+        <tr>
+          <td>Third-party Games</td>
+          <td><span class="warning-icon">⚠️</span> Unverified</td>
+          <td><span style="color: var(--text-warning); font-weight: 700;">MEDIUM</span></td>
+        </tr>
+        <tr>
+          <td>CI/CD Pipelines</td>
+          <td><span class="warning-icon">⚠️</span> Broken</td>
+          <td><span style="color: var(--text-danger); font-weight: 700;">HIGH</span></td>
+        </tr>
+        <tr>
+          <td>Security Configuration</td>
+          <td><span style="color: var(--text-danger);">❌</span> Missing</td>
+          <td><span style="color: var(--text-danger); font-weight: 700;">CRITICAL</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">🛡️ Alternatives (Actively Maintained & Secure)</h2>
+
+    <div class="alternatives">
+      <div class="alternative-card">
+        <h3 style="margin-top: 0; color: var(--text-primary);">🎮 Game Development</h3>
+        <ul>
+          <li><a href="https://phaser.io/" target="_blank">Phaser</a> - Modern HTML5 game framework</li>
+          <li><a href="https://threejs.org/" target="_blank">Three.js</a> - 3D JavaScript library</li>
+          <li><a href="https://godotengine.org/" target="_blank">Godot</a> - Open source game engine</li>
+        </ul>
+      </div>
+
+      <div class="alternative-card">
+        <h3 style="margin-top: 0; color: var(--text-primary);">🌐 Web Applications</h3>
+        <ul>
+          <li><a href="https://vitejs.dev/" target="_blank">Vite</a> - Modern build tool</li>
+          <li><a href="https://nextjs.org/" target="_blank">Next.js</a> - React framework</li>
+          <li><a href="https://github.com/firebase/samples" target="_blank">Firebase Samples</a> - Maintained examples</li>
+        </ul>
+      </div>
+
+      <div class="alternative-card">
+        <h3 style="margin-top: 0; color: var(--text-primary);">📚 Educational Games</h3>
+        <ul>
+          <li><a href="https://www.khanacademy.org/computing/computer-programming" target="_blank">Khan Academy</a></li>
+          <li><a href="https://code.org/" target="_blank">Code.org</a></li>
+          <li><a href="https://scratch.mit.edu/" target="_blank">Scratch</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section warning">
+    <h2 class="section-title warning">📞 Contact (No Support Available)</h2>
+    <p style="font-weight: 700; margin-bottom: var(--spacing-md);">This project is abandoned. No support will be provided.</p>
+    <ul>
+      <li><span style="color: var(--text-danger); font-weight: 700;">❌</span> Issues will not be addressed</li>
+      <li><span style="color: var(--text-danger); font-weight: 700;">❌</span> Pull requests will not be reviewed</li>
+      <li><span style="color: var(--text-danger); font-weight: 700;">❌</span> Questions will not be answered</li>
+      <li><span style="color: var(--text-danger); font-weight: 700;">❌</span> Security reports will not be acted upon</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <p><strong style="color: var(--text-danger); font-size: 1.25rem;">⚠️ THIS REPOSITORY IS ARCHIVED AND SHOULD NOT BE USED ⚠️</strong></p>
+    <p>Use at your own risk. No guarantees of functionality or safety.</p>
+    <p style="font-size: 0.75rem; margin-top: 1rem; color: var(--text-secondary);">Repository: google-drive-hub • Owner: taekfighter • Status: Abandoned • Last Update: 2024</p>
+  </div>
+</div>
+
+<script>
+  // Theme switching support
+  document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+
+    // Auto-detect system theme
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+    if (!savedTheme && prefersDark.matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
+    // Set color-scheme based on theme
+    const updateColorScheme = () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+                     (!document.documentElement.getAttribute('data-theme') && prefersDark.matches);
+      document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+    };
+
+    updateColorScheme();
+
+    // Update theme when system preference changes
+    prefersDark.addEventListener('change', (e) => {
+      if (!localStorage.getItem('theme')) {
+        document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        updateColorScheme();
+      }
+    });
+
+    // Add click handlers for badges to show more info
+    document.querySelectorAll('.badge').forEach(badge => {
+      badge.addEventListener('click', function() {
+        const status = this.textContent.split(': ')[1];
+        alert(`This repository has been marked as "${status}" due to security concerns and lack of maintenance.`);
+      });
+    });
+  });
+</script>
