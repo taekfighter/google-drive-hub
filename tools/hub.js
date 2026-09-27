@@ -192,6 +192,7 @@ window._gamesLoaded = true;
   async function forceLogout(reason, redirect, isKicked) {
     if (loggedOut) return;
     loggedOut = true;
+    window._forceLoggingOut = true;
     if (_lockdownRef) { try { _lockdownRef.off(); } catch (e) {  } _lockdownRef = null; }
     if (_userRef) { try { _userRef.off(); } catch (e) { } _userRef = null; }
     if (_wipeInterval) { clearInterval(_wipeInterval); _wipeInterval = null; }
@@ -203,7 +204,7 @@ window._gamesLoaded = true;
     try { await logActivity(username, reason, extra); } catch (e) {  }
     sessionStorage.removeItem('clocker_user');
     sessionStorage.removeItem('clocker_login_time');
-    if (redirect) window.location.href = redirect;
+    if (redirect) window.location.replace(redirect);
   }
 
   /* ── Inactivity warning toast ─────────────────────── */
@@ -409,6 +410,7 @@ window.addEventListener('keydown', (e) => {
 ===================================================== */
 window.addEventListener('beforeunload', function (e) {
     if (window._panicking) return;
+    if (window._forceLoggingOut) return;
     e.preventDefault();
     e.returnValue = '';
 });
