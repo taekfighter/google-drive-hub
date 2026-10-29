@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Powerline.io</title>
+   
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powerline.io — Core Game</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #111;
+      }
+
+      .game-container {
+        width: 100vw;
+        height: 100dvh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        background: #111;
+      }
+
+      .game-scale {
+        width: 1280px;
+        height: 720px;
+        transform-origin: center center;
+      }
+
+      .game-frame {
+        display: block;
+        width: 1280px;
+        height: 720px;
+        border: 0;
+        background: #000;
+      }
+
+      @media (max-width: 1280px),
+      (max-height: 720px) {
+        .game-scale {
+          transform: scale(min(calc(100vw / 1280),
+                calc(100dvh / 720)));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="game-container">
+      <iframe class="game-frame" src="https://powerline.coolmathgames.com/" allowfullscreen scrolling="no"></iframe>
+    </main>
+  </body>
+</html>

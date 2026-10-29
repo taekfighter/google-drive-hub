@@ -3241,7 +3241,7 @@ let files = [
 "clthereisnofile",
 "cl�oo",
 "cl?",
-"powerline.io",
+"clpowerline"
 ];
 /* =====================================================
    FAVOURITES
